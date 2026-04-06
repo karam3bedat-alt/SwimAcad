@@ -1,11 +1,46 @@
-<div align="center">
+# نظام إدارة أكاديمية السباحة
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+هذا التطبيق هو نظام متكامل لإدارة أكاديمية السباحة، مبني باستخدام React و Tailwind CSS. يتصل النظام بقاعدة بيانات Google Sheets عبر واجهة برمجة تطبيقات (API) مخصصة باستخدام تقنية JSONP لتجاوز قيود CORS.
 
-  <h1>Built with AI Studio</h2>
+## المميزات الرئيسية
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+- **لوحة التحكم (Dashboard):** عرض إحصائيات سريعة حول عدد الطلاب، الحصص المجدولة، الإيرادات الكلية، وعدد المدربين.
+- **إدارة الطلاب:** عرض قائمة كاملة بالطلاب مع تفاصيل العمر، المستوى، وبيانات ولي الأمر.
+- **جدولة الحصص:** عرض الجدول الأسبوعي للحصص مقسماً حسب أيام الأسبوع مع تفاصيل المدرب والوقت والمستوى المطلوب.
+- **واجهة عربية بالكامل (RTL):** تصميم متوافق مع اللغة العربية باستخدام خط Cairo.
+- **تصميم متجاوب:** يعمل النظام بكفاءة على جميع أحجام الشاشات (موبايل، تابلت، ديسكتوب).
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## التقنيات المستخدمة
 
-</div>
+- **React:** لبناء واجهة المستخدم.
+- **Tailwind CSS:** للتنسيق والتصميم العصري.
+- **Lucide React:** للأيقونات.
+- **JSONP:** للاتصال بـ Google Apps Script API وتجاوز قيود CORS.
+
+## كيفية التشغيل
+
+1. تأكد من تثبيت [Node.js](https://nodejs.org/).
+2. قم بتثبيت التبعيات:
+   ```bash
+   npm install
+   ```
+3. ابدأ تشغيل خادم التطوير:
+   ```bash
+   npm run dev
+   ```
+4. افتح المتصفح على الرابط: `http://localhost:3000`
+
+## هيكلة البيانات (API)
+
+يستخدم التطبيق رابط API مخصص:
+`https://script.google.com/macros/s/AKfycby53B68Sz7XvR-YjiRYrpT4C3SbxyNZxOY8G3aEfinhO_bhRL7MkBKRGvSyTxwH_K0p0Q/exec`
+
+العمليات المدعومة:
+- `getStudents`: جلب بيانات الطلاب.
+- `getTrainers`: جلب بيانات المدربين.
+- `getSessions`: جلب بيانات الحصص.
+- `getPayments`: جلب بيانات المدفوعات.
+
+## ملاحظات تقنية
+
+تم استخدام دالة `fetchJSONP` مخصصة لضمان استلام البيانات من Google Apps Script دون مشاكل CORS، حيث يتم حقن وسم `<script>` ديناميكياً في الصفحة.
