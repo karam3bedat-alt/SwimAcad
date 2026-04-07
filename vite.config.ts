@@ -12,6 +12,10 @@ export default defineConfig(({mode}) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
+        workbox: {
+          maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3 MB
+          globPatterns: ['**/*.{js,css,html,ico,png,svg}']
+        },
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
         manifest: {
           name: 'أكاديمية السباحة',
@@ -54,6 +58,9 @@ export default defineConfig(({mode}) => {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
+    },
+    build: {
+      chunkSizeWarningLimit: 3000,
     },
   };
 });
