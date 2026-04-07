@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { Sidebar } from './components/Sidebar';
 import { Navbar } from './components/Navbar';
 import { ToastProvider } from './lib/ToastContext';
@@ -65,6 +66,7 @@ export default function App() {
           <AppContent />
         </AuthProvider>
       </ToastProvider>
+      <SpeedInsights />
     </Router>
   );
 }
