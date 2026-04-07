@@ -1,15 +1,27 @@
 {
-  "name": "Swim Academy",
+  "name": "أكاديمية السباحة",
   "short_name": "SwimAcad",
+  "description": "نظام إدارة أكاديمية السباحة",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0ea5e9",
-  "theme_color": "#0ea5e9",
+  "background_color": "#ffffff",
+  "theme_color": "#3B82F6",
+  "orientation": "portrait",
+  "scope": "/",
+  "lang": "ar",
+  "dir": "rtl",
   "icons": [
     {
-      "src": "/icon.png",
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512x512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

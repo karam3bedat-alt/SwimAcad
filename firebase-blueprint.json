@@ -11,12 +11,103 @@
         "displayName": { "type": "string", "description": "User display name" }
       },
       "required": ["uid", "email", "role"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "Student information",
+      "type": "object",
+      "properties": {
+        "full_name": { "type": "string" },
+        "parent_name": { "type": "string" },
+        "phone": { "type": "string" },
+        "age": { "type": "number" },
+        "level": { "type": "string" },
+        "medical_notes": { "type": "string" },
+        "registration_date": { "type": "string" }
+      },
+      "required": ["full_name", "phone"]
+    },
+    "Coach": {
+      "title": "Coach",
+      "description": "Coach information",
+      "type": "object",
+      "properties": {
+        "full_name": { "type": "string" },
+        "specialization": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" }
+      },
+      "required": ["full_name"]
+    },
+    "Session": {
+      "title": "Session",
+      "description": "Training session",
+      "type": "object",
+      "properties": {
+        "day": { "type": "string" },
+        "start_time": { "type": "string" },
+        "end_time": { "type": "string" },
+        "coach_name": { "type": "string" },
+        "max_capacity": { "type": "number" },
+        "required_level": { "type": "string" }
+      },
+      "required": ["day", "start_time", "end_time"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "Student booking in a session",
+      "type": "object",
+      "properties": {
+        "student_id": { "type": "string" },
+        "student_name": { "type": "string" },
+        "session_id": { "type": "string" },
+        "session_day": { "type": "string" },
+        "session_time": { "type": "string" },
+        "coach_name": { "type": "string" },
+        "date": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["student_id", "session_id", "date"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Payment record",
+      "type": "object",
+      "properties": {
+        "student_id": { "type": "string" },
+        "student_name": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string" },
+        "type": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["student_id", "amount", "date"]
     }
   },
   "firestore": {
     "/users/{uid}": {
       "schema": "User",
       "description": "User profile document"
+    },
+    "/students/{id}": {
+      "schema": "Student",
+      "description": "Student records"
+    },
+    "/trainers/{id}": {
+      "schema": "Coach",
+      "description": "Coach records"
+    },
+    "/sessions/{id}": {
+      "schema": "Session",
+      "description": "Training sessions"
+    },
+    "/bookings/{id}": {
+      "schema": "Booking",
+      "description": "Session bookings"
+    },
+    "/payments/{id}": {
+      "schema": "Payment",
+      "description": "Payment records"
     }
   }
 }

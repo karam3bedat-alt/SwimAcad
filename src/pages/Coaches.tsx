@@ -1,36 +1,22 @@
-import React, { useEffect, useState } from 'react';
-import { Award, Phone, Activity, Loader2, AlertCircle, Plus, User, Trash2, Edit2 } from 'lucide-react';
-import { apiFetch, cn } from '../lib/utils';
+import React, { useState } from 'react';
+import { Award, Phone, Activity, Loader2, AlertCircle, Plus, Trash2, Edit2 } from 'lucide-react';
 import { Coach } from '../types';
 import { Modal } from '../components/Modal';
 import { useToast } from '../lib/ToastContext';
+import { useTrainers, useAddTrainer, useUpdateTrainer, useDeleteTrainer } from '../hooks/useTrainers';
 
 export default function Coaches() {
   const { showToast, hideToast } = useToast();
-  const [coaches, setCoaches] = useState<Coach[]>([]);
+  const { data: coaches = [], isLoading, error } = useTrainers();
+  
+  const addTrainerMutation = useAddTrainer();
+  const updateTrainerMutation = useUpdateTrainer();
+  const deleteTrainerMutation = useDeleteTrainer();
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchCoaches = async () => {
-    try {
-      setLoading(true);
-      const data = await apiFetch('getTrainers');
-      setCoaches(Array.isArray(data) ? data : []);
-    } catch (err: any) {
-      setError(err.message || 'فشل تحميل بيانات المدربين');
-      showToast(err.message || 'فشل تحميل بيانات المدربين', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchCoaches();
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -39,30 +25,28 @@ export default function Coaches() {
     
     const toastId = showToast(isEdit ? 'جاري تحديث بيانات المدرب...' : 'جاري إضافة المدرب...', 'loading');
     try {
-      setLoading(true);
-      await apiFetch(isEdit ? 'editTrainer' : 'addTrainer', {
-        method: 'POST',
-        body: JSON.stringify({
-          action: isEdit ? 'editTrainer' : 'addTrainer',
-          id: isEdit ? selectedCoach.id : undefined,
-          name: formData.get('name'),
-          trainer_name: formData.get('name'),
-          phone: formData.get('phone'),
-          specialty: formData.get('specialty'),
-          status: isEdit ? selectedCoach.status : 'نشط'
-        }),
-      });
+      const trainerData = {
+        name: (formData.get('name') as string) || '',
+        trainer_name: (formData.get('name') as string) || '',
+        phone: (formData.get('phone') as string) || '',
+        specialty: (formData.get('specialty') as string) || '',
+        status: (isEdit ? selectedCoach.status : 'نشط') as 'نشط' | 'غير نشط'
+      };
+
+      if (isEdit) {
+        await updateTrainerMutation.mutateAsync({ id: selectedCoach.id, data: trainerData });
+      } else {
+        await addTrainerMutation.mutateAsync(trainerData);
+      }
+
       hideToast(toastId);
       showToast(isEdit ? 'تم تحديث بيانات المدرب بنجاح' : 'تمت إضافة المدرب بنجاح', 'success');
       setIsModalOpen(false);
       setIsEditModalOpen(false);
       setSelectedCoach(null);
-      fetchCoaches();
     } catch (err: any) {
       hideToast(toastId);
       showToast(err.message || (isEdit ? 'فشل تحديث بيانات المدرب' : 'فشل إضافة المدرب'), 'error');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -71,27 +55,17 @@ export default function Coaches() {
     
     const toastId = showToast('جاري حذف المدرب...', 'loading');
     try {
-      setLoading(true);
-      await apiFetch('deleteTrainer', {
-        method: 'POST',
-        body: JSON.stringify({
-          action: 'deleteTrainer',
-          id: selectedCoach.id
-        }),
-      });
+      await deleteTrainerMutation.mutateAsync(selectedCoach.id);
       hideToast(toastId);
       showToast('تم حذف المدرب بنجاح', 'success');
       setIsDeleteModalOpen(false);
-      fetchCoaches();
     } catch (err: any) {
       hideToast(toastId);
       showToast(err.message || 'فشل حذف المدرب', 'error');
-    } finally {
-      setLoading(false);
     }
   };
 
-  if (loading && coaches.length === 0) {
+  if (isLoading && (!coaches || coaches.length === 0)) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
         <Loader2 className="animate-spin text-blue-600" size={48} />
@@ -119,7 +93,7 @@ export default function Coaches() {
       {error && (
         <div className="bg-red-50 border border-red-200 p-4 rounded-xl flex items-center gap-3 text-red-700">
           <AlertCircle size={20} />
-          <p>{error}</p>
+          <p>{(error as any).message || 'فشل تحميل بيانات المدربين'}</p>
         </div>
       )}
 
@@ -181,7 +155,7 @@ export default function Coaches() {
         ))}
       </div>
 
-      {coaches.length === 0 && !loading && (
+      {coaches.length === 0 && !isLoading && (
         <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-500 italic">
           لا يوجد مدربون مسجلون حالياً.
         </div>
@@ -239,10 +213,10 @@ export default function Coaches() {
             </button>
             <button 
               type="submit"
-              disabled={loading}
+              disabled={addTrainerMutation.isPending || updateTrainerMutation.isPending}
               className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 disabled:opacity-50"
             >
-              {loading ? <Loader2 className="animate-spin" size={20} /> : (isEditModalOpen ? 'تحديث البيانات' : 'إضافة المدرب')}
+              {(addTrainerMutation.isPending || updateTrainerMutation.isPending) ? <Loader2 className="animate-spin" size={20} /> : (isEditModalOpen ? 'تحديث البيانات' : 'إضافة المدرب')}
             </button>
           </div>
         </form>
@@ -268,10 +242,10 @@ export default function Coaches() {
             </button>
             <button 
               onClick={handleDelete}
-              disabled={loading}
+              disabled={deleteTrainerMutation.isPending}
               className="px-6 py-2.5 rounded-xl bg-rose-600 text-white font-bold hover:bg-rose-700 transition-colors shadow-lg shadow-rose-200 disabled:opacity-50"
             >
-              {loading ? <Loader2 className="animate-spin" size={20} /> : 'تأكيد الحذف'}
+              {deleteTrainerMutation.isPending ? <Loader2 className="animate-spin" size={20} /> : 'تأكيد الحذف'}
             </button>
           </div>
         </div>

@@ -1,56 +1,25 @@
-import React, { useEffect, useState } from 'react';
-import { CheckCircle, XCircle, User, Loader2, AlertCircle, Ban } from 'lucide-react';
-import { apiFetch, cn } from '../lib/utils';
-import { Booking } from '../types';
-import { useToast } from '../lib/ToastContext';
+import React from 'react';
+import { CheckCircle, XCircle, User, Loader2, AlertCircle, Ban, Download } from 'lucide-react';
+import { cn } from '../lib/utils';
+import { toast } from 'react-hot-toast';
+import { useBookings, useUpdateBookingStatus } from '../hooks/useBookings';
+import { generateAttendancePDF } from '../services/pdfService';
 
-export default function Bookings() {
-  const { showToast, hideToast } = useToast();
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export default function Attendance() {
+  const { data: bookings = [], isLoading, error } = useBookings();
+  const updateStatusMutation = useUpdateBookingStatus();
 
-  const fetchData = async () => {
+  const updateStatus = async (id: string, status: string) => {
+    const toastId = toast.loading('جاري تحديث الحالة...');
     try {
-      setLoading(true);
-      const b = await apiFetch('getBookings');
-      setBookings(Array.isArray(b) ? b : []);
+      await updateStatusMutation.mutateAsync({ id, status });
+      toast.success(`تم تسجيل الحالة: ${status}`, { id: toastId });
     } catch (err: any) {
-      setError(err.message || 'فشل تحميل الحجوزات');
-      showToast(err.message || 'فشل تحميل الحجوزات', 'error');
-    } finally {
-      setLoading(false);
+      toast.error(err.message || 'فشل تحديث الحالة', { id: toastId });
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const updateStatus = async (id: number, status: string) => {
-    const toastId = showToast('جاري تحديث الحالة...', 'loading');
-    try {
-      setLoading(true);
-      await apiFetch('updateBookingStatus', {
-        method: 'POST',
-        body: JSON.stringify({
-          action: 'updateBookingStatus',
-          id: id,
-          status: status
-        }),
-      });
-      hideToast(toastId);
-      showToast(`تم تسجيل الحالة: ${status}`, 'success');
-      fetchData();
-    } catch (err: any) {
-      hideToast(toastId);
-      showToast(err.message || 'فشل تحديث الحالة', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading && bookings.length === 0) {
+  if (isLoading && (!bookings || bookings.length === 0)) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
         <Loader2 className="animate-spin text-blue-600" size={48} />
@@ -66,12 +35,20 @@ export default function Bookings() {
           <h2 className="text-2xl font-bold text-slate-900">تسجيل الحضور</h2>
           <p className="text-slate-500">متابعة حضور وغياب الطلاب في الحصص المجدولة.</p>
         </div>
+        <button 
+          onClick={() => generateAttendancePDF(bookings)}
+          disabled={bookings.length === 0}
+          className="bg-emerald-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 disabled:opacity-50"
+        >
+          <Download size={20} />
+          <span>تصدير PDF</span>
+        </button>
       </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 p-4 rounded-xl flex items-center gap-3 text-red-700">
           <AlertCircle size={20} />
-          <p>{error}</p>
+          <p>{(error as any).message || 'فشل تحميل الحجوزات'}</p>
         </div>
       )}
 
@@ -121,7 +98,7 @@ export default function Bookings() {
                   <div className="flex items-center gap-2">
                     <button 
                       onClick={() => updateStatus(booking.id, 'حضر')}
-                      disabled={loading}
+                      disabled={updateStatusMutation.isPending}
                       title="تسجيل حضور"
                       className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors disabled:opacity-50"
                     >
@@ -129,7 +106,7 @@ export default function Bookings() {
                     </button>
                     <button 
                       onClick={() => updateStatus(booking.id, 'غائب')}
-                      disabled={loading}
+                      disabled={updateStatusMutation.isPending}
                       title="تسجيل غياب"
                       className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-50"
                     >
@@ -137,7 +114,7 @@ export default function Bookings() {
                     </button>
                     <button 
                       onClick={() => updateStatus(booking.id, 'ملغي')}
-                      disabled={loading}
+                      disabled={updateStatusMutation.isPending}
                       title="إلغاء الحجز"
                       className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
                     >
@@ -149,7 +126,7 @@ export default function Bookings() {
             ))}
           </tbody>
         </table>
-        {bookings.length === 0 && !loading && (
+        {bookings.length === 0 && !isLoading && (
           <div className="p-12 text-center text-slate-500 italic">
             لا يوجد حجوزات مسجلة حالياً.
           </div>

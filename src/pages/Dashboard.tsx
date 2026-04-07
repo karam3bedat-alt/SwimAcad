@@ -1,66 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { StatCard } from '../components/Card';
 import { Users, Calendar, CreditCard, Clock, TrendingUp, Loader2, AlertCircle } from 'lucide-react';
-import { apiFetch } from '../lib/utils';
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  AreaChart, Area
-} from 'recharts';
-
-const chartData = [
-  { name: 'يناير', revenue: 4000, attendance: 80 },
-  { name: 'فبراير', revenue: 3000, attendance: 75 },
-  { name: 'مارس', revenue: 2000, attendance: 90 },
-  { name: 'أبريل', revenue: 2780, attendance: 85 },
-  { name: 'مايو', revenue: 1890, attendance: 70 },
-  { name: 'يونيو', revenue: 2390, attendance: 95 },
-];
+import { useDashboardStats } from '../hooks/useDashboard';
+import StatsCharts from '../components/StatsCharts';
 
 export default function Dashboard() {
-  const [stats, setStats] = useState({
-    totalStudents: 0,
-    totalTrainers: 0,
-    totalPayments: 0,
-    todaySessions: 0,
-    attendanceRate: 0
-  });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: stats, isLoading, error } = useDashboardStats();
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        setLoading(true);
-        const [students, trainers, payments, sessions, bookings] = await Promise.all([
-          apiFetch('getStudents'),
-          apiFetch('getTrainers'),
-          apiFetch('getPayments'),
-          apiFetch('getSessions'),
-          apiFetch('getBookings')
-        ]);
-
-        const totalRevenue = Array.isArray(payments) ? payments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0) : 0;
-        const attended = Array.isArray(bookings) ? bookings.filter(b => b.status === 'حضر').length : 0;
-        const totalBookings = Array.isArray(bookings) ? bookings.length : 0;
-
-        setStats({
-          totalStudents: Array.isArray(students) ? students.length : 0,
-          totalTrainers: Array.isArray(trainers) ? trainers.length : 0,
-          totalPayments: totalRevenue,
-          todaySessions: Array.isArray(sessions) ? sessions.length : 0,
-          attendanceRate: totalBookings > 0 ? Math.round((attended / totalBookings) * 100) : 0
-        });
-      } catch (err: any) {
-        setError(err.message || 'حدث خطأ أثناء جلب البيانات');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchStats();
-  }, []);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
         <Loader2 className="animate-spin text-blue-600" size={48} />
@@ -73,7 +20,7 @@ export default function Dashboard() {
     return (
       <div className="bg-red-50 border border-red-200 p-6 rounded-2xl flex items-center gap-4 text-red-700">
         <AlertCircle size={24} />
-        <p className="font-bold">{error}</p>
+        <p className="font-bold">حدث خطأ في تحميل البيانات: {(error as any).message}</p>
       </div>
     );
   }
@@ -94,73 +41,56 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard 
           title="إجمالي الطلاب" 
-          value={stats.totalStudents} 
+          value={stats?.studentsCount || 0} 
           icon={<Users size={24} />} 
           trend={{ value: '12%', isUp: true }}
           color="blue"
         />
         <StatCard 
           title="إجمالي المدربين" 
-          value={stats.totalTrainers} 
+          value={stats?.trainersCount || 0} 
           icon={<Clock size={24} />} 
           trend={{ value: '5%', isUp: true }}
           color="orange"
         />
         <StatCard 
           title="الإيرادات الكلية" 
-          value={`${stats.totalPayments} ر.س`} 
+          value={`${stats?.totalRevenue?.toLocaleString() || 0} ر.س`} 
           icon={<CreditCard size={24} />} 
           trend={{ value: '8%', isUp: true }}
           color="green"
         />
         <StatCard 
-          title="نسبة الحضور" 
-          value={`${stats.attendanceRate}%`} 
+          title="الحصص المجدولة" 
+          value={stats?.sessionsCount || 0} 
           icon={<TrendingUp size={24} />} 
           trend={{ value: '3%', isUp: true }}
           color="purple"
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <h3 className="text-lg font-bold text-slate-900 mb-6">الإيرادات الشهرية</h3>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
-                <defs>
-                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
-                <Tooltip 
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                />
-                <Area type="monotone" dataKey="revenue" stroke="#2563eb" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenue)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+      <StatsCharts />
 
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <h3 className="text-lg font-bold text-slate-900 mb-6">معدل الحضور</h3>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
-                <Tooltip 
-                  cursor={{ fill: '#f8fafc' }}
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                />
-                <Bar dataKey="attendance" fill="#10b981" radius={[4, 4, 0, 0]} barSize={40} />
-              </BarChart>
-            </ResponsiveContainer>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
+          <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-6">آخر المدفوعات</h3>
+          <div className="space-y-4">
+            {stats?.recentPayments?.length ? stats.recentPayments.map((payment: any) => (
+              <div key={payment.id} className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 last:border-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-600 dark:text-slate-400">
+                    <CreditCard size={18} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-900 dark:text-slate-100">{payment.student_name || 'طالب غير معروف'}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{payment.date || 'تاريخ غير معروف'}</p>
+                  </div>
+                </div>
+                <span className="font-bold text-green-600 dark:text-emerald-400">+{payment.amount} ر.س</span>
+              </div>
+            )) : (
+              <p className="text-center text-slate-500 dark:text-slate-400 py-8">لا توجد مدفوعات مؤخراً</p>
+            )}
           </div>
         </div>
       </div>

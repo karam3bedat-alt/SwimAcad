@@ -1,78 +1,55 @@
-import React, { useEffect, useState } from 'react';
-import { Plus, Search, Loader2, AlertCircle, Calendar, User, Clock, Trash2 } from 'lucide-react';
-import { apiFetch, cn } from '../lib/utils';
-import { Booking, Student, Session } from '../types';
+import React, { useState } from 'react';
+import { Plus, Search, Loader2, AlertCircle, User, Trash2 } from 'lucide-react';
+import { cn } from '../lib/utils';
+import { Booking } from '../types';
 import { Modal } from '../components/Modal';
 import { useToast } from '../lib/ToastContext';
+import { useBookings, useAddBooking, useDeleteBooking } from '../hooks/useBookings';
+import { useStudents } from '../hooks/useStudents';
+import { useSessions } from '../hooks/useSessions';
 
 export default function Bookings() {
   const { showToast, hideToast } = useToast();
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const { data: bookings = [], isLoading: isLoadingBookings, error: bookingsError } = useBookings();
+  const { data: students = [], isLoading: isLoadingStudents } = useStudents();
+  const { data: sessions = [], isLoading: isLoadingSessions } = useSessions();
+  
+  const addBookingMutation = useAddBooking();
+  const deleteBookingMutation = useDeleteBooking();
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const [b, s, sess] = await Promise.all([
-        apiFetch('getBookings'),
-        apiFetch('getStudents'),
-        apiFetch('getSessions')
-      ]);
-      setBookings(Array.isArray(b) ? b : []);
-      setStudents(Array.isArray(s) ? s : []);
-      setSessions(Array.isArray(sess) ? sess : []);
-    } catch (err: any) {
-      setError(err.message || 'فشل تحميل البيانات');
-      showToast(err.message || 'فشل تحميل البيانات', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const studentId = formData.get('student_id');
-    const sessionId = formData.get('session_id');
+    const studentId = formData.get('student_id') as string;
+    const sessionId = formData.get('session_id') as string;
+    const dateValue = formData.get('date') as string;
     
-    const student = students.find(s => Number(s.id) === Number(studentId));
-    const session = sessions.find(s => Number(s.id) === Number(sessionId));
+    const student = students?.find(s => s.id === studentId);
+    const session = sessions?.find(s => s.id === sessionId);
 
     const toastId = showToast('جاري إضافة الحجز...', 'loading');
     try {
-      setLoading(true);
-      await apiFetch('addBooking', {
-        method: 'POST',
-        body: JSON.stringify({
-          action: 'addBooking',
-          student_id: studentId,
-          student_name: student?.full_name,
-          session_id: sessionId,
-          session_day: session?.day,
-          session_time: `${session?.start_time} - ${session?.end_time}`,
-          date: formData.get('date')
-        }),
+      await addBookingMutation.mutateAsync({
+        student_id: studentId,
+        student_name: student?.full_name || '',
+        session_id: sessionId,
+        session_day: session?.day || '',
+        session_time: session ? `${session.start_time} - ${session.end_time}` : '',
+        coach_name: session?.coach_name || session?.trainer_name || '',
+        date: dateValue,
+        status: 'محجوز'
       });
       hideToast(toastId);
       showToast('تمت إضافة الحجز بنجاح', 'success');
       setIsModalOpen(false);
-      fetchData();
     } catch (err: any) {
       hideToast(toastId);
       showToast(err.message || 'فشل إضافة الحجز', 'error');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -81,32 +58,24 @@ export default function Bookings() {
     
     const toastId = showToast('جاري حذف الحجز...', 'loading');
     try {
-      setLoading(true);
-      await apiFetch('deleteBooking', {
-        method: 'POST',
-        body: JSON.stringify({
-          action: 'deleteBooking',
-          id: selectedBooking.id
-        }),
-      });
+      await deleteBookingMutation.mutateAsync(selectedBooking.id);
       hideToast(toastId);
       showToast('تم حذف الحجز بنجاح', 'success');
       setIsDeleteModalOpen(false);
       setSelectedBooking(null);
-      fetchData();
     } catch (err: any) {
       hideToast(toastId);
       showToast(err.message || 'فشل حذف الحجز', 'error');
-    } finally {
-      setLoading(false);
     }
   };
 
-  const filteredBookings = bookings.filter(b => 
+  const filteredBookings = (bookings || []).filter(b => 
     b.student_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  if (loading && bookings.length === 0) {
+  const isLoading = isLoadingBookings || isLoadingStudents || isLoadingSessions;
+
+  if (isLoading && (!bookings || bookings.length === 0)) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
         <Loader2 className="animate-spin text-blue-600" size={48} />
@@ -131,10 +100,10 @@ export default function Bookings() {
         </button>
       </div>
 
-      {error && (
+      {bookingsError && (
         <div className="bg-red-50 border border-red-200 p-4 rounded-xl flex items-center gap-3 text-red-700">
           <AlertCircle size={20} />
-          <p>{error}</p>
+          <p>{(bookingsError as any).message || 'فشل تحميل البيانات'}</p>
         </div>
       )}
 
@@ -211,7 +180,7 @@ export default function Bookings() {
             ))}
           </tbody>
         </table>
-        {filteredBookings.length === 0 && !loading && (
+        {filteredBookings.length === 0 && !isLoading && (
           <div className="p-12 text-center text-slate-500 italic">
             لا يوجد حجوزات مطابقة للبحث.
           </div>
@@ -272,10 +241,10 @@ export default function Bookings() {
             </button>
             <button 
               type="submit"
-              disabled={loading}
+              disabled={addBookingMutation.isPending}
               className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 disabled:opacity-50"
             >
-              {loading ? <Loader2 className="animate-spin" size={20} /> : 'إضافة الحجز'}
+              {addBookingMutation.isPending ? <Loader2 className="animate-spin" size={20} /> : 'إضافة الحجز'}
             </button>
           </div>
         </form>
@@ -300,10 +269,10 @@ export default function Bookings() {
             </button>
             <button 
               onClick={handleBookingDelete}
-              disabled={loading}
+              disabled={deleteBookingMutation.isPending}
               className="px-6 py-2.5 rounded-xl bg-rose-600 text-white font-bold hover:bg-rose-700 transition-colors shadow-lg shadow-rose-200 disabled:opacity-50"
             >
-              {loading ? <Loader2 className="animate-spin" size={20} /> : 'تأكيد الحذف'}
+              {deleteBookingMutation.isPending ? <Loader2 className="animate-spin" size={20} /> : 'تأكيد الحذف'}
             </button>
           </div>
         </div>

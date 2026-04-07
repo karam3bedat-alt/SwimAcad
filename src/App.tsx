@@ -14,6 +14,8 @@ import Attendance from './pages/Attendance';
 import Payments from './pages/Payments';
 import Reports from './pages/Reports';
 import Login from './pages/Login';
+import { Toaster } from 'react-hot-toast';
+import { ThemeProvider } from './context/ThemeContext';
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -30,29 +32,38 @@ function AppContent() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50 font-['Cairo']" dir="rtl">
+    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950 font-['Cairo'] transition-colors" dir="rtl">
       {user && <Sidebar />}
       <div className="flex-1 flex flex-col min-w-0">
         {user && <Navbar />}
-        <main className="flex-1 p-8 overflow-y-auto">
+        <main className={`flex-1 p-4 md:p-8 overflow-y-auto ${user ? 'mt-16 lg:mt-0' : ''}`}>
           <div className="max-w-7xl mx-auto">
             <Routes>
               <Route path="/login" element={!user ? <Login /> : <Navigate to="/" replace />} />
               
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/students" element={<ProtectedRoute requiredRole="admin"><Students /></ProtectedRoute>} />
-              <Route path="/coaches" element={<ProtectedRoute requiredRole="admin"><Coaches /></ProtectedRoute>} />
-              <Route path="/sessions" element={<ProtectedRoute requiredRole="admin"><Sessions /></ProtectedRoute>} />
+              <Route path="/students" element={<ProtectedRoute allowedRoles={['admin']}><Students /></ProtectedRoute>} />
+              <Route path="/coaches" element={<ProtectedRoute allowedRoles={['admin']}><Coaches /></ProtectedRoute>} />
+              <Route path="/sessions" element={<ProtectedRoute allowedRoles={['admin']}><Sessions /></ProtectedRoute>} />
               <Route path="/bookings" element={<ProtectedRoute><Bookings /></ProtectedRoute>} />
               <Route path="/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
-              <Route path="/payments" element={<ProtectedRoute requiredRole="admin"><Payments /></ProtectedRoute>} />
-              <Route path="/reports" element={<ProtectedRoute requiredRole="admin"><Reports /></ProtectedRoute>} />
+              <Route path="/payments" element={<ProtectedRoute allowedRoles={['admin']}><Payments /></ProtectedRoute>} />
+              <Route path="/reports" element={<ProtectedRoute allowedRoles={['admin']}><Reports /></ProtectedRoute>} />
               
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </div>
         </main>
       </div>
+      <Toaster 
+        position="top-center"
+        toastOptions={{
+          duration: 3000,
+          style: {
+            fontFamily: 'Cairo, sans-serif',
+          },
+        }}
+      />
     </div>
   );
 }
@@ -61,9 +72,11 @@ export default function App() {
   return (
     <Router>
       <ToastProvider>
-        <AuthProvider>
-          <AppContent />
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <AppContent />
+          </AuthProvider>
+        </ThemeProvider>
       </ToastProvider>
     </Router>
   );

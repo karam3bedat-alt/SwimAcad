@@ -1,5 +1,5 @@
 export interface Student {
-  id: number;
+  id: string;
   full_name: string;
   age: number;
   level: 'مبتدئ' | 'متوسط' | 'متقدم' | 'احترافي';
@@ -11,7 +11,7 @@ export interface Student {
 }
 
 export interface Coach {
-  id: number;
+  id: string;
   name: string;
   trainer_name?: string;
   phone: string;
@@ -20,8 +20,8 @@ export interface Coach {
 }
 
 export interface Session {
-  id: number;
-  coach_id: number;
+  id: string;
+  coach_id: string;
   coach_name?: string;
   trainer_name?: string;
   day: 'السبت' | 'الأحد' | 'الاثنين' | 'الثلاثاء' | 'الأربعاء' | 'الخميس' | 'الجمعة';
@@ -32,10 +32,10 @@ export interface Session {
 }
 
 export interface Booking {
-  id: number;
-  student_id: number;
+  id: string;
+  student_id: string;
   student_name?: string;
-  session_id: number;
+  session_id: string;
   date: string;
   status: 'محجوز' | 'حضر' | 'غائب' | 'ملغي';
   coach_name?: string;
@@ -48,8 +48,8 @@ export interface Booking {
 }
 
 export interface Payment {
-  id: number;
-  student_id: number;
+  id: string;
+  student_id: string;
   student_name?: string;
   amount: number;
   date: string;

@@ -1,29 +1,26 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { FileDown, BarChart3, Users, CreditCard, Clock } from 'lucide-react';
-import { apiFetch, exportToExcel } from '../lib/utils';
+import { exportToExcel } from '../lib/utils';
 import { Card } from '../components/Card';
+import { useStudents } from '../hooks/useStudents';
+import { usePayments } from '../hooks/usePayments';
+import { useBookings } from '../hooks/useBookings';
 
 export default function Reports() {
-  const [students, setStudents] = useState([]);
-  const [payments, setPayments] = useState([]);
-  const [bookings, setBookings] = useState([]);
-
-  useEffect(() => {
-    apiFetch('getStudents').then(setStudents);
-    apiFetch('getPayments').then(setPayments);
-    apiFetch('getBookings').then(setBookings);
-  }, []);
+  const { data: students = [] } = useStudents();
+  const { data: payments = [] } = usePayments();
+  const { data: bookings = [] } = useBookings();
 
   const handleExportStudents = () => {
-    exportToExcel(students, 'تقرير_الطلاب');
+    if (students) exportToExcel(students as any[], 'تقرير_الطلاب');
   };
 
   const handleExportPayments = () => {
-    exportToExcel(payments, 'تقرير_المدفوعات');
+    if (payments) exportToExcel(payments as any[], 'تقرير_المدفوعات');
   };
 
   const handleExportAttendance = () => {
-    exportToExcel(bookings, 'تقرير_الحضور');
+    if (bookings) exportToExcel(bookings as any[], 'تقرير_الحضور');
   };
 
   return (

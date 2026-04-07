@@ -1,81 +1,54 @@
-import React, { useEffect, useState } from 'react';
-import { Plus, CreditCard, User, Search, Loader2, AlertCircle, Wallet, CheckCircle } from 'lucide-react';
-import { apiFetch, cn, exportToExcel } from '../lib/utils';
-import { Payment, Student } from '../types';
+import React, { useState } from 'react';
+import { Plus, CreditCard, Search, Loader2, AlertCircle, Wallet, FileDown, Download } from 'lucide-react';
+import { cn, exportToExcel } from '../lib/utils';
+import { Payment } from '../types';
 import { Modal } from '../components/Modal';
-import { useToast } from '../lib/ToastContext';
-import { FileDown } from 'lucide-react';
+import { toast } from 'react-hot-toast';
+import { usePayments, useAddPayment } from '../hooks/usePayments';
+import { useStudents } from '../hooks/useStudents';
+import { generatePaymentsPDF } from '../services/pdfService';
 
 export default function Payments() {
-  const { showToast, hideToast } = useToast();
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
+  const { data: payments = [], isLoading: isLoadingPayments, error: paymentsError } = usePayments();
+  const { data: students = [], isLoading: isLoadingStudents } = useStudents();
+  
+  const addPaymentMutation = useAddPayment();
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const [p, s] = await Promise.all([
-        apiFetch('getPayments'),
-        apiFetch('getStudents')
-      ]);
-      setPayments(Array.isArray(p) ? p : []);
-      setStudents(Array.isArray(s) ? s : []);
-    } catch (err: any) {
-      setError(err.message || 'فشل تحميل المدفوعات');
-      showToast(err.message || 'فشل تحميل المدفوعات', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const studentId = formData.get('student_id');
-    const student = students.find(s => Number(s.id) === Number(studentId));
+    const studentId = formData.get('student_id') as string;
+    const student = students?.find(s => s.id === studentId);
 
-    const toastId = showToast('جاري تسجيل الدفعة...', 'loading');
+    const toastId = toast.loading('جاري تسجيل الدفعة...');
     try {
-      setLoading(true);
-      await apiFetch('addPayment', {
-        method: 'POST',
-        body: JSON.stringify({
-          action: 'addPayment',
-          student_id: studentId,
-          student_name: student?.full_name,
-          amount: formData.get('amount'),
-          date: new Date().toISOString().split('T')[0],
-          method: formData.get('method'),
-          notes: formData.get('notes')
-        }),
+      await addPaymentMutation.mutateAsync({
+        student_id: studentId,
+        student_name: student?.full_name || '',
+        amount: Number(formData.get('amount')),
+        date: new Date().toISOString().split('T')[0],
+        method: (formData.get('method') as 'نقدي' | 'تحويل') || 'نقدي',
+        notes: (formData.get('notes') as string) || ''
       });
-      hideToast(toastId);
-      showToast('تم تسجيل الدفعة بنجاح', 'success');
+      toast.success('تم تسجيل الدفعة بنجاح', { id: toastId });
       setIsModalOpen(false);
-      fetchData();
     } catch (err: any) {
-      hideToast(toastId);
-      showToast(err.message || 'فشل تسجيل الدفعة', 'error');
-    } finally {
-      setLoading(false);
+      toast.error(err.message || 'فشل تسجيل الدفعة', { id: toastId });
     }
   };
 
-  const filteredPayments = payments.filter(p => 
+  const filteredPayments = (payments || []).filter(p => 
     p.student_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const totalRevenue = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const totalRevenue = (payments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
-  if (loading && payments.length === 0) {
+  const isLoading = isLoadingPayments || isLoadingStudents;
+
+  if (isLoading && (!payments || payments.length === 0)) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
         <Loader2 className="animate-spin text-blue-600" size={48} />
@@ -97,22 +70,30 @@ export default function Payments() {
             className="bg-white text-slate-600 border border-slate-200 px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-slate-50 transition-colors"
           >
             <FileDown size={20} />
-            <span>تصدير Excel</span>
+            <span>Excel</span>
+          </button>
+          <button 
+            onClick={() => generatePaymentsPDF(filteredPayments)}
+            disabled={filteredPayments.length === 0}
+            className="bg-emerald-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 disabled:opacity-50"
+          >
+            <Download size={20} />
+            <span>PDF</span>
           </button>
           <button 
             onClick={() => setIsModalOpen(true)}
             className="bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
           >
             <Plus size={20} />
-            <span>تسجيل دفعة جديدة</span>
+            <span>تسجيل دفعة</span>
           </button>
         </div>
       </div>
 
-      {error && (
+      {paymentsError && (
         <div className="bg-red-50 border border-red-200 p-4 rounded-xl flex items-center gap-3 text-red-700">
           <AlertCircle size={20} />
-          <p>{error}</p>
+          <p>{(paymentsError as any).message || 'فشل تحميل المدفوعات'}</p>
         </div>
       )}
 
@@ -196,7 +177,7 @@ export default function Payments() {
             ))}
           </tbody>
         </table>
-        {filteredPayments.length === 0 && !loading && (
+        {filteredPayments.length === 0 && !isLoading && (
           <div className="p-12 text-center text-slate-500 italic">
             لا يوجد مدفوعات مسجلة حالياً.
           </div>
@@ -260,10 +241,10 @@ export default function Payments() {
             </button>
             <button 
               type="submit"
-              disabled={loading}
+              disabled={addPaymentMutation.isPending}
               className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 disabled:opacity-50"
             >
-              {loading ? <Loader2 className="animate-spin" size={20} /> : 'تسجيل الدفعة'}
+              {addPaymentMutation.isPending ? <Loader2 className="animate-spin" size={20} /> : 'تسجيل الدفعة'}
             </button>
           </div>
         </form>

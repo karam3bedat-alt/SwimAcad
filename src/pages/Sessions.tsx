@@ -1,66 +1,39 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Plus, Clock, Users as UsersIcon, Loader2, AlertCircle, Trash2 } from 'lucide-react';
-import { apiFetch } from '../lib/utils';
-import { Session, Student } from '../types';
+import { Session } from '../types';
 import { Modal } from '../components/Modal';
 import { useToast } from '../lib/ToastContext';
+import { useSessions, useDeleteSession } from '../hooks/useSessions';
+import { useStudents } from '../hooks/useStudents';
+import { useAddBooking } from '../hooks/useBookings';
 
 const DAYS = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
 
 export default function Sessions() {
   const { showToast, hideToast } = useToast();
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
+  const { data: sessions = [], isLoading: isLoadingSessions, error: sessionsError } = useSessions();
+  const { data: students = [], isLoading: isLoadingStudents } = useStudents();
+  
+  const deleteSessionMutation = useDeleteSession();
+  const addBookingMutation = useAddBooking();
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const [s, st] = await Promise.all([
-        apiFetch('getSessions'),
-        apiFetch('getStudents')
-      ]);
-      setSessions(Array.isArray(s) ? s : []);
-      setStudents(Array.isArray(st) ? st : []);
-    } catch (err: any) {
-      setError(err.message || 'فشل تحميل الحصص');
-      showToast(err.message || 'فشل تحميل الحصص', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
 
   const handleSessionDelete = async () => {
     if (!selectedSession) return;
     
     const toastId = showToast('جاري حذف الحصة...', 'loading');
     try {
-      setLoading(true);
-      await apiFetch('deleteSession', {
-        method: 'POST',
-        body: JSON.stringify({
-          action: 'deleteSession',
-          id: selectedSession.id
-        }),
-      });
+      await deleteSessionMutation.mutateAsync(selectedSession.id);
       hideToast(toastId);
       showToast('تم حذف الحصة بنجاح', 'success');
       setIsDeleteModalOpen(false);
       setSelectedSession(null);
-      fetchData();
     } catch (err: any) {
       hideToast(toastId);
       showToast(err.message || 'فشل حذف الحصة', 'error');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -69,23 +42,20 @@ export default function Sessions() {
     if (!selectedSession) return;
 
     const formData = new FormData(e.currentTarget);
-    const studentId = formData.get('student_id');
-    const student = students.find(s => Number(s.id) === Number(studentId));
+    const studentId = formData.get('student_id') as string;
+    const student = students?.find(s => s.id === studentId);
 
     const toastId = showToast('جاري تنفيذ الحجز...', 'loading');
     try {
-      setLoading(true);
-      await apiFetch('addBooking', {
-        method: 'POST',
-        body: JSON.stringify({
-          action: 'addBooking',
-          student_id: studentId,
-          student_name: student?.full_name,
-          session_id: selectedSession.id,
-          session_day: selectedSession.day,
-          session_time: `${selectedSession.start_time} - ${selectedSession.end_time}`,
-          date: new Date().toISOString().split('T')[0] // Default to today
-        }),
+      await addBookingMutation.mutateAsync({
+        student_id: studentId,
+        student_name: student?.full_name || '',
+        session_id: selectedSession.id,
+        session_day: selectedSession.day,
+        session_time: `${selectedSession.start_time} - ${selectedSession.end_time}`,
+        coach_name: selectedSession.coach_name || selectedSession.trainer_name || '',
+        date: new Date().toISOString().split('T')[0], // Default to today
+        status: 'محجوز'
       });
       hideToast(toastId);
       showToast('تم الحجز بنجاح', 'success');
@@ -94,12 +64,12 @@ export default function Sessions() {
     } catch (err: any) {
       hideToast(toastId);
       showToast(err.message || 'فشل الحجز', 'error');
-    } finally {
-      setLoading(false);
     }
   };
 
-  if (loading && sessions.length === 0) {
+  const isLoading = isLoadingSessions || isLoadingStudents;
+
+  if (isLoading && (!sessions || sessions.length === 0)) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
         <Loader2 className="animate-spin text-blue-600" size={48} />
@@ -117,10 +87,10 @@ export default function Sessions() {
         </div>
       </div>
 
-      {error && (
+      {sessionsError && (
         <div className="bg-red-50 border border-red-200 p-4 rounded-xl flex items-center gap-3 text-red-700">
           <AlertCircle size={20} />
-          <p>{error}</p>
+          <p>{(sessionsError as any).message || 'فشل تحميل الحصص'}</p>
         </div>
       )}
 
@@ -131,7 +101,7 @@ export default function Sessions() {
               {day}
             </div>
             <div className="space-y-3">
-              {sessions.filter(s => s.day === day).map((session) => (
+              {(sessions || []).filter(s => s.day === day).map((session) => (
                 <div key={session.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative group">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-[10px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded uppercase">
@@ -166,7 +136,7 @@ export default function Sessions() {
                   </div>
                 </div>
               ))}
-              {sessions.filter(s => s.day === day).length === 0 && (
+              {(sessions || []).filter(s => s.day === day).length === 0 && (
                 <div className="h-24 border-2 border-dashed border-slate-100 rounded-xl flex items-center justify-center text-slate-300 text-xs italic text-center px-2">
                   لا يوجد حصص مبرمجة
                 </div>
@@ -213,10 +183,10 @@ export default function Sessions() {
             </button>
             <button 
               type="submit"
-              disabled={loading}
+              disabled={addBookingMutation.isPending}
               className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 disabled:opacity-50"
             >
-              {loading ? <Loader2 className="animate-spin" size={20} /> : 'تأكيد الحجز'}
+              {addBookingMutation.isPending ? <Loader2 className="animate-spin" size={20} /> : 'تأكيد الحجز'}
             </button>
           </div>
         </form>
@@ -241,10 +211,10 @@ export default function Sessions() {
             </button>
             <button 
               onClick={handleSessionDelete}
-              disabled={loading}
+              disabled={deleteSessionMutation.isPending}
               className="px-6 py-2.5 rounded-xl bg-rose-600 text-white font-bold hover:bg-rose-700 transition-colors shadow-lg shadow-rose-200 disabled:opacity-50"
             >
-              {loading ? <Loader2 className="animate-spin" size={20} /> : 'تأكيد الحذف'}
+              {deleteSessionMutation.isPending ? <Loader2 className="animate-spin" size={20} /> : 'تأكيد الحذف'}
             </button>
           </div>
         </div>

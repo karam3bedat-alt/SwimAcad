@@ -9,6 +9,16 @@
   body {
     @apply bg-slate-50 text-slate-900;
   }
+
+  :root {
+    --tooltip-bg: #fff;
+    --tooltip-color: #000;
+  }
+
+  .dark {
+    --tooltip-bg: #0f172a;
+    --tooltip-color: #f8fafc;
+  }
 }
 
 .rtl-flip {

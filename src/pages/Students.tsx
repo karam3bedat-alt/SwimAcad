@@ -1,92 +1,57 @@
-import React, { useEffect, useState } from 'react';
-import { Plus, Search, Filter, Phone, User as UserIcon, Wallet, Loader2, AlertCircle, Edit2, Trash2 } from 'lucide-react';
-import { apiFetch, cn } from '../lib/utils';
+import React, { useState, useMemo } from 'react';
+import { Plus, Search, Filter, Phone, Wallet, Loader2, AlertCircle, Edit2, Trash2, Download } from 'lucide-react';
+import { cn } from '../lib/utils';
 import { Student } from '../types';
 import { Modal } from '../components/Modal';
-import { useToast } from '../lib/ToastContext';
+import { toast } from 'react-hot-toast';
+import { useStudents, useAddStudent, useUpdateStudent, useDeleteStudent } from '../hooks/useStudents';
+import { usePayments } from '../hooks/usePayments';
+import { generateStudentsPDF } from '../services/pdfService';
 
 export default function Students() {
-  const { showToast, hideToast } = useToast();
-  const [students, setStudents] = useState<Student[]>([]);
+  const { data: students = [], isLoading: isLoadingStudents, error: studentsError } = useStudents();
+  const { data: payments = [], isLoading: isLoadingPayments } = usePayments();
+  
+  const addStudentMutation = useAddStudent();
+  const updateStudentMutation = useUpdateStudent();
+  const deleteStudentMutation = useDeleteStudent();
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLevel, setFilterLevel] = useState('الكل');
-  const [balances, setBalances] = useState<Record<number, number>>({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const [studentsData, paymentsData] = await Promise.all([
-        apiFetch('getStudents'),
-        apiFetch('getPayments')
-      ]);
-
-      if (Array.isArray(studentsData)) {
-        setStudents(studentsData);
-        
-        const newBalances: Record<number, number> = {};
-        studentsData.forEach(student => {
-          const studentPayments = Array.isArray(paymentsData) ? paymentsData.filter(p => Number(p.student_id) === Number(student.id)) : [];
-          const totalPaid = studentPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
-          newBalances[student.id] = totalPaid;
-        });
-        setBalances(newBalances);
-      }
-    } catch (err: any) {
-      setError(err.message || 'فشل تحميل بيانات الطلاب');
-      showToast(err.message || 'فشل تحميل بيانات الطلاب', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const balances = useMemo(() => {
+    const newBalances: Record<string, number> = {};
+    (students || []).forEach(student => {
+      const studentPayments = (payments || []).filter(p => p.student_id === student.id);
+      const totalPaid = studentPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+      newBalances[student.id] = totalPaid;
+    });
+    return newBalances;
+  }, [students, payments]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const data = Object.fromEntries(formData.entries());
-
-    const toastId = showToast('جاري إضافة الطالب...', 'loading');
+    
+    const toastId = toast.loading('جاري إضافة الطالب...');
     try {
-      setLoading(true);
-      await apiFetch('addStudent', {
-        method: 'POST',
-        body: JSON.stringify({
-          action: 'addStudent',
-          // Snake case
-          full_name: data.full_name,
-          parent_name: data.parent_name,
-          parent_phone: data.phone,
-          medical_notes: data.medical_notes,
-          // Camel case
-          fullName: data.full_name,
-          parentName: data.parent_name,
-          parentPhone: data.phone,
-          medicalNotes: data.medical_notes,
-          // Common fields
-          age: data.age,
-          level: data.level,
-          phone: data.phone
-        }),
+      await addStudentMutation.mutateAsync({
+        full_name: (formData.get('full_name') as string) || '',
+        parent_name: (formData.get('parent_name') as string) || '',
+        phone: (formData.get('phone') as string) || '',
+        medical_notes: (formData.get('medical_notes') as string) || '',
+        age: Number(formData.get('age')),
+        level: (formData.get('level') as any) || 'مبتدئ',
+        registration_date: new Date().toISOString()
       });
-      hideToast(toastId);
-      showToast('تمت إضافة الطالب بنجاح', 'success');
+      toast.success('تمت إضافة الطالب بنجاح', { id: toastId });
       setIsModalOpen(false);
-      // Wait a bit for Google Sheets to update
-      setTimeout(fetchData, 1500);
     } catch (err: any) {
-      hideToast(toastId);
-      showToast(err.message || 'فشل إضافة الطالب', 'error');
-    } finally {
-      setLoading(false);
+      toast.error(err.message || 'فشل إضافة الطالب', { id: toastId });
     }
   };
 
@@ -95,70 +60,50 @@ export default function Students() {
     if (!selectedStudent) return;
     
     const formData = new FormData(e.currentTarget);
-    const data = Object.fromEntries(formData.entries());
 
-    const toastId = showToast('جاري تحديث بيانات الطالب...', 'loading');
+    const toastId = toast.loading('جاري تحديث بيانات الطالب...');
     try {
-      setLoading(true);
-      await apiFetch('editStudent', {
-        method: 'POST',
-        body: JSON.stringify({
-          action: 'editStudent',
-          id: selectedStudent.id,
-          full_name: data.full_name,
-          parent_name: data.parent_name,
-          parent_phone: data.phone,
-          medical_notes: data.medical_notes,
-          age: data.age,
-          level: data.level,
-          phone: data.phone
-        }),
+      await updateStudentMutation.mutateAsync({
+        id: selectedStudent.id,
+        data: {
+          full_name: (formData.get('full_name') as string) || '',
+          parent_name: (formData.get('parent_name') as string) || '',
+          phone: (formData.get('phone') as string) || '',
+          medical_notes: (formData.get('medical_notes') as string) || '',
+          age: Number(formData.get('age')),
+          level: (formData.get('level') as any) || 'مبتدئ'
+        }
       });
-      hideToast(toastId);
-      showToast('تم تحديث بيانات الطالب بنجاح', 'success');
+      toast.success('تم تحديث بيانات الطالب بنجاح', { id: toastId });
       setIsEditModalOpen(false);
-      setTimeout(fetchData, 1500);
     } catch (err: any) {
-      hideToast(toastId);
-      showToast(err.message || 'فشل تحديث بيانات الطالب', 'error');
-    } finally {
-      setLoading(false);
+      toast.error(err.message || 'فشل تحديث بيانات الطالب', { id: toastId });
     }
   };
 
   const handleDelete = async () => {
     if (!selectedStudent) return;
     
-    const toastId = showToast('جاري حذف الطالب...', 'loading');
+    const toastId = toast.loading('جاري حذف الطالب...');
     try {
-      setLoading(true);
-      await apiFetch('deleteStudent', {
-        method: 'POST',
-        body: JSON.stringify({
-          action: 'deleteStudent',
-          id: selectedStudent.id
-        }),
-      });
-      hideToast(toastId);
-      showToast('تم حذف الطالب بنجاح', 'success');
+      await deleteStudentMutation.mutateAsync(selectedStudent.id);
+      toast.success('تم حذف الطالب بنجاح', { id: toastId });
       setIsDeleteModalOpen(false);
-      setTimeout(fetchData, 1500);
     } catch (err: any) {
-      hideToast(toastId);
-      showToast(err.message || 'فشل حذف الطالب', 'error');
-    } finally {
-      setLoading(false);
+      toast.error(err.message || 'فشل حذف الطالب', { id: toastId });
     }
   };
 
-  const filteredStudents = students.filter(s => {
+  const filteredStudents = (students || []).filter(s => {
     const matchesSearch = s.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                          (s.phone || s.parent_phone)?.includes(searchTerm);
     const matchesLevel = filterLevel === 'الكل' || s.level === filterLevel;
     return matchesSearch && matchesLevel;
   });
 
-  if (loading && students.length === 0) {
+  const isLoading = isLoadingStudents || isLoadingPayments;
+
+  if (isLoading && (!students || students.length === 0)) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
         <Loader2 className="animate-spin text-blue-600" size={48} />
@@ -174,19 +119,29 @@ export default function Students() {
           <h2 className="text-2xl font-bold text-slate-900">إدارة الطلاب</h2>
           <p className="text-slate-500">عرض وإدارة جميع الطلاب المسجلين في الأكاديمية.</p>
         </div>
-        <button 
-          onClick={() => { setIsModalOpen(true); }}
-          className="bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
-        >
-          <Plus size={20} />
-          <span>إضافة طالب جديد</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => generateStudentsPDF(filteredStudents)}
+            disabled={filteredStudents.length === 0}
+            className="bg-emerald-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 disabled:opacity-50"
+          >
+            <Download size={20} />
+            <span>تصدير PDF</span>
+          </button>
+          <button 
+            onClick={() => { setIsModalOpen(true); }}
+            className="bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
+          >
+            <Plus size={20} />
+            <span>إضافة طالب جديد</span>
+          </button>
+        </div>
       </div>
 
-      {error && (
+      {studentsError && (
         <div className="bg-red-50 border border-red-200 p-4 rounded-xl flex items-center gap-3 text-red-700">
           <AlertCircle size={20} />
-          <p>{error}</p>
+          <p>{(studentsError as any).message || 'فشل تحميل بيانات الطلاب'}</p>
         </div>
       )}
 
@@ -296,7 +251,7 @@ export default function Students() {
             ))}
           </tbody>
         </table>
-        {filteredStudents.length === 0 && !loading && (
+        {filteredStudents.length === 0 && !isLoading && (
           <div className="p-12 text-center text-slate-500 italic">
             لا يوجد طلاب مسجلين حالياً.
           </div>
@@ -374,10 +329,10 @@ export default function Students() {
             </button>
             <button 
               type="submit"
-              disabled={loading}
+              disabled={addStudentMutation.isPending}
               className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 disabled:opacity-50"
             >
-              {loading ? <Loader2 className="animate-spin" size={20} /> : 'إضافة الطالب'}
+              {addStudentMutation.isPending ? <Loader2 className="animate-spin" size={20} /> : 'إضافة الطالب'}
             </button>
           </div>
         </form>
@@ -460,10 +415,10 @@ export default function Students() {
               </button>
               <button 
                 type="submit"
-                disabled={loading}
+                disabled={updateStudentMutation.isPending}
                 className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 disabled:opacity-50"
               >
-                {loading ? <Loader2 className="animate-spin" size={20} /> : 'تحديث البيانات'}
+                {updateStudentMutation.isPending ? <Loader2 className="animate-spin" size={20} /> : 'تحديث البيانات'}
               </button>
             </div>
           </form>
@@ -490,10 +445,10 @@ export default function Students() {
             </button>
             <button 
               onClick={handleDelete}
-              disabled={loading}
+              disabled={deleteStudentMutation.isPending}
               className="px-6 py-2.5 rounded-xl bg-rose-600 text-white font-bold hover:bg-rose-700 transition-colors shadow-lg shadow-rose-200 disabled:opacity-50"
             >
-              {loading ? <Loader2 className="animate-spin" size={20} /> : 'تأكيد الحذف'}
+              {deleteStudentMutation.isPending ? <Loader2 className="animate-spin" size={20} /> : 'تأكيد الحذف'}
             </button>
           </div>
         </div>

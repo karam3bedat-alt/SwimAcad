@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../firebase';
 import { useToast } from '../lib/ToastContext';
-import { Loader2, LogIn, UserPlus } from 'lucide-react';
+import { Waves, Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export default function Login() {
   const { showToast, hideToast } = useToast();
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -40,7 +41,7 @@ export default function Login() {
         errorMessage = 'البريد الإلكتروني غير صالح';
       } else if (err.code === 'auth/weak-password') {
         errorMessage = 'كلمة المرور ضعيفة جداً';
-      } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+      } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
         errorMessage = 'البريد الإلكتروني أو كلمة المرور غير صحيحة';
       } else if (err.message) {
         errorMessage = err.message;
@@ -53,59 +54,85 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl border border-slate-200 p-8 space-y-8">
-        <div className="text-center space-y-2">
-          <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white mx-auto shadow-lg shadow-blue-200 mb-4">
-            {isLogin ? <LogIn size={32} /> : <UserPlus size={32} />}
+    <div className="min-h-screen bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
+        <div className="text-center mb-8">
+          <div className="bg-blue-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Waves size={40} className="text-blue-600" />
           </div>
-          <h1 className="text-3xl font-bold text-slate-900">
-            {isLogin ? 'تسجيل الدخول' : 'إنشاء حساب جديد'}
-          </h1>
-          <p className="text-slate-500">
-            {isLogin ? 'أهلاً بك مجدداً في أكاديمية السباحة' : 'انضم إلينا كمدرب في الأكاديمية'}
+          <h1 className="text-2xl font-bold text-gray-800">أكاديمية السباحة</h1>
+          <p className="text-gray-500">
+            {isLogin ? 'تسجيل الدخول للنظام' : 'إنشاء حساب مدرب جديد'}
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">البريد الإلكتروني</label>
-            <input 
-              name="email" 
-              type="email" 
-              required 
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-              placeholder="example@email.com"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">كلمة المرور</label>
-            <input 
-              name="password" 
-              type="password" 
-              required 
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-              placeholder="••••••••"
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="block text-gray-700 text-sm font-bold mb-2">
+              البريد الإلكتروني
+            </label>
+            <input
+              name="email"
+              type="email"
+              required
+              className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:outline-none transition-colors"
+              placeholder="admin@example.com"
             />
           </div>
 
-          <button 
+          <div>
+            <label className="block text-gray-700 text-sm font-bold mb-2">
+              كلمة المرور
+            </label>
+            <div className="relative">
+              <input
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                required
+                className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:outline-none transition-colors"
+                placeholder="••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-500"
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
+          </div>
+
+          <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-2"
           >
-            {loading ? <Loader2 className="animate-spin" size={20} /> : (isLogin ? 'دخول' : 'إنشاء حساب')}
+            {loading ? (
+              <>
+                <Loader2 className="animate-spin" size={20} />
+                جاري تسجيل الدخول...
+              </>
+            ) : (
+              isLogin ? 'تسجيل الدخول' : 'إنشاء الحساب'
+            )}
           </button>
         </form>
 
-        <div className="text-center">
+        <div className="mt-6 text-center">
           <button 
             onClick={() => setIsLogin(!isLogin)}
             className="text-blue-600 font-bold hover:underline"
           >
-            {isLogin ? 'ليس لديك حساب؟ سجل الآن' : 'لديك حساب بالفعل؟ سجل دخولك'}
+            {isLogin ? 'ليس لديك حساب؟ سجل الآن كمدرب' : 'لديك حساب بالفعل؟ سجل دخولك'}
           </button>
         </div>
+
+        {isLogin && (
+          <div className="mt-6 p-4 bg-gray-50 rounded-lg text-sm text-gray-600">
+            <p className="font-bold mb-2">بيانات الدخول (للمدير):</p>
+            <p className="font-mono">karam.3bedat@gmail.com</p>
+          </div>
+        )}
       </div>
     </div>
   );
