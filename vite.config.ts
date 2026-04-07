@@ -13,7 +13,7 @@ export default defineConfig(({mode}) => {
       VitePWA({
         registerType: 'autoUpdate',
         workbox: {
-          maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3 MB
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB
           globPatterns: ['**/*.{js,css,html,ico,png,svg}']
         },
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
@@ -61,6 +61,15 @@ export default defineConfig(({mode}) => {
     },
     build: {
       chunkSizeWarningLimit: 3000,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+            'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/messaging'],
+            'vendor-utils': ['lucide-react', 'react-hot-toast', 'recharts', 'jspdf', 'jspdf-autotable'],
+          }
+        }
+      }
     },
   };
 });
