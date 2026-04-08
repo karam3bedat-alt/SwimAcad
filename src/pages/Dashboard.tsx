@@ -29,10 +29,10 @@ export default function Dashboard() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">لوحة التحكم</h2>
-          <p className="text-slate-500">مرحباً بك مجدداً، إليك نظرة سريعة على أداء الأكاديمية.</p>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">لوحة التحكم</h2>
+          <p className="text-slate-500 dark:text-slate-400">مرحباً بك مجدداً، إليك نظرة سريعة على أداء الأكاديمية.</p>
         </div>
-        <div className="bg-white px-4 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 flex items-center gap-2">
+        <div className="bg-white dark:bg-slate-900 px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-800 text-sm font-medium text-slate-600 dark:text-slate-400 flex items-center gap-2 transition-colors">
           <Calendar size={16} />
           {new Date().toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </div>

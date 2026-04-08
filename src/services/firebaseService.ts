@@ -10,7 +10,7 @@ import {
   orderBy 
 } from 'firebase/firestore';
 
-import { Student, Coach, Session, Booking, Payment } from '../types';
+import { Student, Coach, Session, Booking, Payment, AppSettings } from '../types';
 
 enum OperationType {
   CREATE = 'create',
@@ -292,6 +292,34 @@ export const paymentsService = {
       await deleteDoc(docRef);
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, path);
+    }
+  }
+};
+
+// خدمة الإعدادات
+export const settingsService = {
+  async getSettings(): Promise<AppSettings | null> {
+    const path = 'settings/app_config';
+    try {
+      const docRef = doc(db, 'settings', 'app_config');
+      const snapshot = await getDocs(query(collection(db, 'settings')));
+      const configDoc = snapshot.docs.find(d => d.id === 'app_config');
+      return configDoc ? (configDoc.data() as AppSettings) : null;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.GET, path);
+      return null;
+    }
+  },
+
+  async updateSettings(data: Partial<AppSettings>): Promise<void> {
+    const path = 'settings/app_config';
+    try {
+      const docRef = doc(db, 'settings', 'app_config');
+      // Using setDoc with merge: true to create if doesn't exist
+      const { setDoc } = await import('firebase/firestore');
+      await setDoc(docRef, data, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, path);
     }
   }
 };

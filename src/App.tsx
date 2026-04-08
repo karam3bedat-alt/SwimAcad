@@ -13,6 +13,8 @@ import Bookings from './pages/Bookings';
 import Attendance from './pages/Attendance';
 import Payments from './pages/Payments';
 import Reports from './pages/Reports';
+import Notifications from './pages/Notifications';
+import { PaymentPage } from './pages/PaymentPage';
 import Login from './pages/Login';
 import { Toaster } from 'react-hot-toast';
 import { ThemeProvider } from './context/ThemeContext';
@@ -49,6 +51,10 @@ function AppContent() {
               <Route path="/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
               <Route path="/payments" element={<ProtectedRoute allowedRoles={['admin']}><Payments /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute allowedRoles={['admin']}><Reports /></ProtectedRoute>} />
+              <Route path="/notifications" element={<ProtectedRoute allowedRoles={['admin']}><Notifications /></ProtectedRoute>} />
+              
+              {/* Public Payment Route */}
+              <Route path="/payment" element={<PaymentPage />} />
               
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

@@ -56,3 +56,14 @@ export interface Payment {
   method: 'نقدي' | 'تحويل';
   notes: string;
 }
+
+export interface AppSettings {
+  payment_config: {
+    bitPhone: string;
+    payboxPhone: string;
+    bankAccount: string;
+    bankName: string;
+    academyName: string;
+    academyPhone: string;
+  };
+}

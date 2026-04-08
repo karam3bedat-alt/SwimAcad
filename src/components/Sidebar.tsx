@@ -15,14 +15,14 @@ import {
   X,
   Moon,
   Sun,
-  Search
+  Search,
+  Bell
 } from 'lucide-react';
 import { auth } from '../firebase';
 import { signOut } from 'firebase/auth';
 import { useAuth } from '../AuthContext';
 import { useToast } from '../lib/ToastContext';
 import { useTheme } from '../context/ThemeContext';
-import NotificationManager from './NotificationManager';
 
 const menuItems = [
   { name: 'لوحة التحكم', path: '/', icon: LayoutDashboard, roles: ['admin', 'coach'] },
@@ -32,6 +32,7 @@ const menuItems = [
   { name: 'الحجوزات', path: '/bookings', icon: BookOpenCheck, roles: ['admin', 'coach'] },
   { name: 'الحضور والغياب', path: '/attendance', icon: ClipboardCheck, roles: ['admin', 'coach'] },
   { name: 'المدفوعات', path: '/payments', icon: CreditCard, roles: ['admin'] },
+  { name: 'الإشعارات', path: '/notifications', icon: Bell, roles: ['admin'] },
   { name: 'التقارير', path: '/reports', icon: BarChart3, roles: ['admin'] },
 ];
 
@@ -107,7 +108,6 @@ export function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
-        <NotificationManager />
         {user && (
           <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
             <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-400">

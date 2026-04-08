@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Search, Filter, Phone, Wallet, Loader2, AlertCircle, Edit2, Trash2, Download } from 'lucide-react';
+import { Plus, Search, Filter, Phone, Wallet, Loader2, AlertCircle, Edit2, Trash2, Download, MessageCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Student } from '../types';
 import { Modal } from '../components/Modal';
@@ -7,6 +7,8 @@ import { toast } from 'react-hot-toast';
 import { useStudents, useAddStudent, useUpdateStudent, useDeleteStudent } from '../hooks/useStudents';
 import { usePayments } from '../hooks/usePayments';
 import { generateStudentsPDF } from '../services/pdfService';
+import { createWhatsAppLink, whatsappTemplates } from '../utils/whatsapp';
+import { BroadcastWhatsApp } from '../components/BroadcastWhatsApp';
 
 export default function Students() {
   const { data: students = [], isLoading: isLoadingStudents, error: studentsError } = useStudents();
@@ -19,6 +21,7 @@ export default function Students() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isBroadcastModalOpen, setIsBroadcastModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLevel, setFilterLevel] = useState('الكل');
@@ -101,6 +104,37 @@ export default function Students() {
     return matchesSearch && matchesLevel;
   });
 
+  const handleWhatsAppClick = (student: Student, type: string) => {
+    let message = '';
+    const phone = student.phone || student.parent_phone;
+    if (!phone) {
+      toast.error('رقم الهاتف غير متوفر');
+      return;
+    }
+    
+    switch(type) {
+      case 'welcome':
+        message = whatsappTemplates.welcome(student.full_name);
+        break;
+      case 'reminder':
+        message = whatsappTemplates.sessionReminder(student.full_name, 'غداً', '4:00 مساءً');
+        break;
+      case 'payment':
+        message = whatsappTemplates.paymentReminder(student.full_name, 500, 'الحالي');
+        break;
+      case 'custom':
+        const customMsg = prompt('اكتب رسالتك:');
+        if (customMsg) message = customMsg;
+        else return;
+        break;
+      default:
+        message = 'مرحباً،';
+    }
+    
+    const link = createWhatsAppLink(phone, message);
+    window.open(link, '_blank');
+  };
+
   const isLoading = isLoadingStudents || isLoadingPayments;
 
   if (isLoading && (!students || students.length === 0)) {
@@ -116,10 +150,17 @@ export default function Students() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">إدارة الطلاب</h2>
-          <p className="text-slate-500">عرض وإدارة جميع الطلاب المسجلين في الأكاديمية.</p>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">إدارة الطلاب</h2>
+          <p className="text-slate-500 dark:text-slate-400">عرض وإدارة جميع الطلاب المسجلين في الأكاديمية.</p>
         </div>
         <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setIsBroadcastModalOpen(true)}
+            className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors"
+          >
+            <MessageCircle size={20} />
+            <span>رسائل جماعية</span>
+          </button>
           <button 
             onClick={() => generateStudentsPDF(filteredStudents)}
             disabled={filteredStudents.length === 0}
@@ -145,7 +186,7 @@ export default function Students() {
         </div>
       )}
 
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4">
+      <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input 
@@ -153,7 +194,7 @@ export default function Students() {
             placeholder="بحث بالاسم أو رقم الهاتف..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-50 border-none rounded-xl py-2.5 pr-10 pl-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+            className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-2.5 pr-10 pl-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none dark:text-slate-200"
           />
         </div>
         <div className="flex items-center gap-2">
@@ -161,7 +202,7 @@ export default function Students() {
           <select 
             value={filterLevel}
             onChange={(e) => setFilterLevel(e.target.value)}
-            className="bg-slate-50 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none min-w-[140px]"
+            className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none min-w-[140px] dark:text-slate-200"
           >
             <option value="الكل">جميع المستويات</option>
             <option value="مبتدئ">مبتدئ</option>
@@ -172,29 +213,29 @@ export default function Students() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
         <table className="w-full text-right">
-          <thead className="bg-slate-50 border-b border-slate-100">
+          <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
             <tr>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600">الطالب</th>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600">المستوى</th>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600">ولي الأمر</th>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600">إجمالي المدفوع</th>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600">تاريخ التسجيل</th>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600">الإجراءات</th>
+              <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">الطالب</th>
+              <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">المستوى</th>
+              <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">ولي الأمر</th>
+              <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">إجمالي المدفوع</th>
+              <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">تاريخ التسجيل</th>
+              <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">الإجراءات</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-50">
+          <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
             {filteredStudents.map((student) => (
-              <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
+              <tr key={student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold">
+                    <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold">
                       {student.full_name?.charAt(0)}
                     </div>
                     <div>
-                      <p className="font-bold text-slate-900">{student.full_name}</p>
-                      <p className="text-xs text-slate-500 flex items-center gap-1">
+                      <p className="font-bold text-slate-900 dark:text-slate-100">{student.full_name}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
                         <Phone size={12} /> {student.phone || student.parent_phone}
                       </p>
                     </div>
@@ -203,36 +244,52 @@ export default function Students() {
                 <td className="px-6 py-4">
                   <span className={cn(
                     "px-3 py-1 rounded-full text-xs font-bold",
-                    student.level === 'مبتدئ' && "bg-blue-50 text-blue-600",
-                    student.level === 'متوسط' && "bg-emerald-50 text-emerald-600",
-                    student.level === 'متقدم' && "bg-orange-50 text-orange-600",
-                    student.level === 'احترافي' && "bg-purple-50 text-purple-600",
+                    student.level === 'مبتدئ' && "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400",
+                    student.level === 'متوسط' && "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400",
+                    student.level === 'متقدم' && "bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400",
+                    student.level === 'احترافي' && "bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400",
                   )}>
                     {student.level}
                   </span>
                 </td>
                 <td className="px-6 py-4">
-                  <p className="text-sm text-slate-700">{student.parent_name}</p>
+                  <p className="text-sm text-slate-700 dark:text-slate-300">{student.parent_name}</p>
                 </td>
                 <td className="px-6 py-4">
-                  <div className="flex items-center gap-1 text-sm font-bold text-emerald-600">
+                  <div className="flex items-center gap-1 text-sm font-bold text-emerald-600 dark:text-emerald-400">
                     <Wallet size={14} />
                     <span>{balances[student.id] || 0} ر.س</span>
                   </div>
                 </td>
                 <td className="px-6 py-4">
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
                     {student.registration_date ? new Date(student.registration_date).toLocaleDateString('ar-EG') : '-'}
                   </p>
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <button 
+                        onClick={() => handleWhatsAppClick(student, 'welcome')}
+                        className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg transition-colors"
+                        title="رسالة ترحيب"
+                      >
+                        <MessageCircle size={14} />
+                      </button>
+                      <button 
+                        onClick={() => handleWhatsAppClick(student, 'custom')}
+                        className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg transition-colors"
+                        title="رسالة مخصصة"
+                      >
+                        <Phone size={14} />
+                      </button>
+                    </div>
                     <button 
                       onClick={() => {
                         setSelectedStudent(student);
                         setIsEditModalOpen(true);
                       }}
-                      className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
                     >
                       <Edit2 size={16} />
                     </button>
@@ -241,7 +298,7 @@ export default function Students() {
                         setSelectedStudent(student);
                         setIsDeleteModalOpen(true);
                       }}
-                      className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                      className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-colors"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -266,28 +323,28 @@ export default function Students() {
       >
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">الاسم الكامل</label>
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">الاسم الكامل</label>
             <input 
               name="full_name" 
               required 
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">العمر</label>
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">العمر</label>
             <input 
               name="age" 
               type="number"
               required 
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">المستوى</label>
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">المستوى</label>
             <select 
               name="level" 
               defaultValue="مبتدئ"
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
             >
               <option value="مبتدئ">مبتدئ</option>
               <option value="متوسط">متوسط</option>
@@ -296,34 +353,34 @@ export default function Students() {
             </select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">اسم ولي الأمر</label>
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">اسم ولي الأمر</label>
             <input 
               name="parent_name" 
               required 
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">رقم الهاتف</label>
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">رقم الهاتف</label>
             <input 
               name="phone" 
               required 
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
             />
           </div>
           <div className="space-y-2 md:col-span-2">
-            <label className="text-sm font-bold text-slate-700">ملاحظات طبية</label>
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">ملاحظات طبية</label>
             <textarea 
               name="medical_notes" 
               rows={3}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
             />
           </div>
           <div className="md:col-span-2 flex justify-end gap-3 pt-4">
             <button 
               type="button" 
               onClick={() => setIsModalOpen(false)}
-              className="px-6 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-colors"
+              className="px-6 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
             >
               إلغاء
             </button>
@@ -347,30 +404,30 @@ export default function Students() {
         {selectedStudent && (
           <form onSubmit={handleEdit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700">الاسم الكامل</label>
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">الاسم الكامل</label>
               <input 
                 name="full_name" 
                 defaultValue={selectedStudent.full_name}
                 required 
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700">العمر</label>
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">العمر</label>
               <input 
                 name="age" 
                 type="number"
                 defaultValue={selectedStudent.age}
                 required 
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700">المستوى</label>
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">المستوى</label>
               <select 
                 name="level" 
                 defaultValue={selectedStudent.level}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
               >
                 <option value="مبتدئ">مبتدئ</option>
                 <option value="متوسط">متوسط</option>
@@ -379,37 +436,37 @@ export default function Students() {
               </select>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700">اسم ولي الأمر</label>
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">اسم ولي الأمر</label>
               <input 
                 name="parent_name" 
                 defaultValue={selectedStudent.parent_name}
                 required 
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700">رقم الهاتف</label>
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">رقم الهاتف</label>
               <input 
                 name="phone" 
                 defaultValue={selectedStudent.phone || selectedStudent.parent_phone}
                 required 
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
               />
             </div>
             <div className="space-y-2 md:col-span-2">
-              <label className="text-sm font-bold text-slate-700">ملاحظات طبية</label>
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">ملاحظات طبية</label>
               <textarea 
                 name="medical_notes" 
                 defaultValue={selectedStudent.medical_notes}
                 rows={3}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
               />
             </div>
             <div className="md:col-span-2 flex justify-end gap-3 pt-4">
               <button 
                 type="button" 
                 onClick={() => setIsEditModalOpen(false)}
-                className="px-6 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-colors"
+                className="px-6 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
               >
                 إلغاء
               </button>
@@ -431,15 +488,15 @@ export default function Students() {
         title="تأكيد الحذف"
       >
         <div className="space-y-4">
-          <p className="text-slate-600">
-            هل أنت متأكد من رغبتك في حذف الطالب <span className="font-bold text-slate-900">{selectedStudent?.full_name}</span>؟
+          <p className="text-slate-600 dark:text-slate-400">
+            هل أنت متأكد من رغبتك في حذف الطالب <span className="font-bold text-slate-900 dark:text-slate-100">{selectedStudent?.full_name}</span>؟
             هذا الإجراء لا يمكن التراجع عنه.
           </p>
           <div className="flex justify-end gap-3 pt-4">
             <button 
               type="button" 
               onClick={() => setIsDeleteModalOpen(false)}
-              className="px-6 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-colors"
+              className="px-6 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
             >
               إلغاء
             </button>
@@ -452,6 +509,15 @@ export default function Students() {
             </button>
           </div>
         </div>
+      </Modal>
+
+      <Modal
+        isOpen={isBroadcastModalOpen}
+        onClose={() => setIsBroadcastModalOpen(false)}
+        title="إرسال رسائل جماعية"
+        size="lg"
+      >
+        <BroadcastWhatsApp students={students} />
       </Modal>
     </div>
   );

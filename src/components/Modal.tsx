@@ -35,15 +35,15 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             className={cn(
-              "relative bg-white rounded-2xl shadow-2xl w-full overflow-hidden",
+              "relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full overflow-hidden border border-white dark:border-slate-800",
               sizes[size]
             )}
           >
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-xl font-bold text-slate-900">{title}</h3>
+            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">{title}</h3>
               <button 
                 onClick={onClose}
-                className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors"
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
               >
                 <X size={20} />
               </button>
