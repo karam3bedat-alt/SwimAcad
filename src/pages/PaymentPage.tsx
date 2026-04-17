@@ -31,7 +31,7 @@ export const PaymentPage: React.FC = () => {
           </div>
           <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2">تم الدفع بنجاح!</h2>
           <p className="text-slate-600 dark:text-slate-400 mb-6">
-            تم استلام مبلغ <span className="font-bold text-slate-900 dark:text-slate-100">{amount} ر.س</span> لشهر {month}
+            تم استلام مبلغ <span className="font-bold text-slate-900 dark:text-slate-100">{amount} ₪</span> لشهر {month}
           </p>
           <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl text-sm text-slate-500 dark:text-slate-400">
             سيتم إرسال إيصال الدفع عبر الواتساب قريباً. شكراً لثقتكم بأكاديمية السباحة.
@@ -64,7 +64,7 @@ export const PaymentPage: React.FC = () => {
           <div className="h-px bg-blue-200 dark:bg-blue-800/50 my-3" />
           <div className="flex justify-between text-lg">
             <span className="text-slate-600 dark:text-slate-400 font-bold">المبلغ المستحق:</span>
-            <span className="font-bold text-blue-600 dark:text-blue-400">{amount} ر.س</span>
+            <span className="font-bold text-blue-600 dark:text-blue-400">{amount} ₪</span>
           </div>
         </div>
 
@@ -126,7 +126,7 @@ export const PaymentPage: React.FC = () => {
             className="w-full bg-blue-600 text-white font-bold py-4 rounded-xl hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-blue-100 dark:shadow-none transition-all"
           >
             {isProcessing ? <Loader2 className="animate-spin" size={20} /> : null}
-            {isProcessing ? 'جاري المعالجة...' : `دفع ${amount} ر.س`}
+            {isProcessing ? 'جاري المعالجة...' : `دفع ${amount} ₪`}
           </button>
         </form>
 

@@ -9,10 +9,16 @@ import { usePayments } from '../hooks/usePayments';
 import { generateStudentsPDF } from '../services/pdfService';
 import { createWhatsAppLink, whatsappTemplates } from '../utils/whatsapp';
 import { BroadcastWhatsApp } from '../components/BroadcastWhatsApp';
+import { useSettings } from '../hooks/useSettings';
+import { DEFAULT_COURSE_PRICES, PaymentConfig } from '../services/paymentService';
 
 export default function Students() {
   const { data: students = [], isLoading: isLoadingStudents, error: studentsError } = useStudents();
   const { data: payments = [], isLoading: isLoadingPayments } = usePayments();
+  const { data: appSettings } = useSettings();
+  
+  const currentPrices = (appSettings?.payment_config as PaymentConfig)?.coursePrices || DEFAULT_COURSE_PRICES;
+  const courseTypes = Object.entries(currentPrices).map(([name, price]) => ({ name, price: price as number }));
   
   const addStudentMutation = useAddStudent();
   const updateStudentMutation = useUpdateStudent();
@@ -42,15 +48,17 @@ export default function Students() {
     
     const toastId = toast.loading('جاري إضافة الطالب...');
     try {
-      await addStudentMutation.mutateAsync({
-        full_name: (formData.get('full_name') as string) || '',
-        parent_name: (formData.get('parent_name') as string) || '',
-        phone: (formData.get('phone') as string) || '',
-        medical_notes: (formData.get('medical_notes') as string) || '',
-        age: Number(formData.get('age')),
-        level: (formData.get('level') as any) || 'مبتدئ',
-        registration_date: new Date().toISOString()
-      });
+        await addStudentMutation.mutateAsync({
+          full_name: (formData.get('full_name') as string) || '',
+          parent_name: (formData.get('parent_name') as string) || '',
+          phone: (formData.get('phone') as string) || '',
+          medical_notes: (formData.get('medical_notes') as string) || '',
+          age: Number(formData.get('age')),
+          level: (formData.get('level') as any) || 'مبتدئ',
+          course_type: (formData.get('course_type') as string) || '',
+          custom_fee: formData.get('custom_fee') ? Number(formData.get('custom_fee')) : null,
+          registration_date: new Date().toISOString()
+        });
       toast.success('تمت إضافة الطالب بنجاح', { id: toastId });
       setIsModalOpen(false);
     } catch (err: any) {
@@ -66,17 +74,19 @@ export default function Students() {
 
     const toastId = toast.loading('جاري تحديث بيانات الطالب...');
     try {
-      await updateStudentMutation.mutateAsync({
-        id: selectedStudent.id,
-        data: {
-          full_name: (formData.get('full_name') as string) || '',
-          parent_name: (formData.get('parent_name') as string) || '',
-          phone: (formData.get('phone') as string) || '',
-          medical_notes: (formData.get('medical_notes') as string) || '',
-          age: Number(formData.get('age')),
-          level: (formData.get('level') as any) || 'مبتدئ'
-        }
-      });
+        await updateStudentMutation.mutateAsync({
+          id: selectedStudent.id,
+          data: {
+            full_name: (formData.get('full_name') as string) || '',
+            parent_name: (formData.get('parent_name') as string) || '',
+            phone: (formData.get('phone') as string) || '',
+            medical_notes: (formData.get('medical_notes') as string) || '',
+            age: Number(formData.get('age')),
+            level: (formData.get('level') as any) || 'مبتدئ',
+            course_type: (formData.get('course_type') as string) || '',
+            custom_fee: formData.get('custom_fee') ? Number(formData.get('custom_fee')) : null
+          }
+        });
       toast.success('تم تحديث بيانات الطالب بنجاح', { id: toastId });
       setIsEditModalOpen(false);
     } catch (err: any) {
@@ -218,7 +228,7 @@ export default function Students() {
           <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
             <tr>
               <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">الطالب</th>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">المستوى</th>
+              <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">الدورة</th>
               <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">ولي الأمر</th>
               <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">إجمالي المدفوع</th>
               <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">تاريخ التسجيل</th>
@@ -242,15 +252,8 @@ export default function Students() {
                   </div>
                 </td>
                 <td className="px-6 py-4">
-                  <span className={cn(
-                    "px-3 py-1 rounded-full text-xs font-bold",
-                    student.level === 'مبتدئ' && "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400",
-                    student.level === 'متوسط' && "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400",
-                    student.level === 'متقدم' && "bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400",
-                    student.level === 'احترافي' && "bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400",
-                  )}>
-                    {student.level}
-                  </span>
+                  <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{student.course_type || 'غير محدد'}</p>
+                  <p className="text-[10px] text-slate-500">{student.level}</p>
                 </td>
                 <td className="px-6 py-4">
                   <p className="text-sm text-slate-700 dark:text-slate-300">{student.parent_name}</p>
@@ -258,7 +261,7 @@ export default function Students() {
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-1 text-sm font-bold text-emerald-600 dark:text-emerald-400">
                     <Wallet size={14} />
-                    <span>{balances[student.id] || 0} ر.س</span>
+                    <span>{balances[student.id] || 0} ₪</span>
                   </div>
                 </td>
                 <td className="px-6 py-4">
@@ -336,6 +339,26 @@ export default function Students() {
               name="age" 
               type="number"
               required 
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">نوع الدورة</label>
+            <select 
+              name="course_type" 
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
+            >
+              {courseTypes.map(course => (
+                <option key={course.name} value={course.name}>{course.name} ({course.price} ₪)</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">سعر مخصص (₪)</label>
+            <input 
+              name="custom_fee" 
+              type="number"
+              placeholder="اتركه فارغاً للسعر التلقائي"
               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
             />
           </div>
@@ -419,6 +442,28 @@ export default function Students() {
                 type="number"
                 defaultValue={selectedStudent.age}
                 required 
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">نوع الدورة</label>
+              <select 
+                name="course_type" 
+                defaultValue={selectedStudent.course_type}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
+              >
+                {courseTypes.map(course => (
+                  <option key={course.name} value={course.name}>{course.name} ({course.price} ₪)</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">سعر مخصص (₪)</label>
+              <input 
+                name="custom_fee" 
+                type="number"
+                defaultValue={selectedStudent.custom_fee}
+                placeholder="اتركه فارغاً للسعر التلقائي"
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
               />
             </div>

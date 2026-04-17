@@ -82,6 +82,19 @@
         "notes": { "type": "string" }
       },
       "required": ["student_id", "amount", "date"]
+    },
+    "AcademyConfig": {
+      "title": "AcademyConfig",
+      "description": "Global academy settings",
+      "type": "object",
+      "properties": {
+        "academyName": { "type": "string" },
+        "academyPhone": { "type": "string" },
+        "bitPhone": { "type": "string" },
+        "payboxPhone": { "type": "string" },
+        "bankName": { "type": "string" },
+        "bankAccount": { "type": "string" }
+      }
     }
   },
   "firestore": {
@@ -108,6 +121,10 @@
     "/payments/{id}": {
       "schema": "Payment",
       "description": "Payment records"
+    },
+    "/settings/app_config": {
+      "schema": "AcademyConfig",
+      "description": "Global academy settings"
     }
   }
 }

@@ -124,7 +124,7 @@ const StatsCharts: React.FC = () => {
                 tick={{ fill: '#64748b', fontSize: 12 }} 
               />
               <Tooltip 
-                formatter={(value: number) => [`${value.toLocaleString()} ر.س`, 'الإيرادات']}
+                formatter={(value: number) => [`${value.toLocaleString()} ₪`, 'الإيرادات']}
                 contentStyle={{ 
                   borderRadius: '12px', 
                   border: 'none', 

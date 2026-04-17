@@ -101,8 +101,10 @@ export const studentsService = {
     const path = `students/${id}`;
     try {
       const docRef = doc(db, 'students', id);
+      // Clean up undefined values
+      const cleanData = JSON.parse(JSON.stringify(data));
       await updateDoc(docRef, {
-        ...data,
+        ...cleanData,
         updatedAt: new Date().toISOString()
       });
     } catch (error) {
@@ -154,8 +156,9 @@ export const trainersService = {
     const path = `trainers/${id}`;
     try {
       const docRef = doc(db, 'trainers', id);
+      const cleanData = JSON.parse(JSON.stringify(data));
       await updateDoc(docRef, {
-        ...data,
+        ...cleanData,
         updatedAt: new Date().toISOString()
       });
     } catch (error) {

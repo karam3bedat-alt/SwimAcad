@@ -114,7 +114,7 @@ export const NotificationManager: React.FC = () => {
             <span className="font-bold">إجمالي المستحقات</span>
           </div>
           <p className="text-3xl font-bold text-blue-600 dark:text-blue-500">
-            {overdueList.reduce((sum, item) => sum + item.amount, 0).toLocaleString()} ر.س
+            {overdueList.reduce((sum, item) => sum + item.amount, 0).toLocaleString()} ₪
           </p>
           <p className="text-sm text-blue-600 dark:text-blue-400">مبلغ متوقع تحصيله</p>
         </div>
@@ -184,7 +184,7 @@ export const NotificationManager: React.FC = () => {
                         {notification.subject}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-slate-700 dark:text-slate-300 font-medium">{notification.amount} ر.س</td>
+                    <td className="px-6 py-4 text-slate-700 dark:text-slate-300 font-medium">{notification.amount} ₪</td>
                     <td className="px-6 py-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                         notification.urgency === 'high' 

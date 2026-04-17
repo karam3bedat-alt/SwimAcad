@@ -2,7 +2,9 @@ export interface Student {
   id: string;
   full_name: string;
   age: number;
-  level: 'مبتدئ' | 'متوسط' | 'متقدم' | 'احترافي';
+  level: string;
+  course_type?: string;
+  custom_fee?: number;
   parent_name: string;
   phone: string;
   parent_phone?: string;

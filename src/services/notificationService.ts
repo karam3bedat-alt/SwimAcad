@@ -35,7 +35,7 @@ export const messageTemplates: Record<NotificationType, (data: TemplateData) => 
     subject: 'تذكير بالدفع',
     message: `مرحباً ${data.parentName} 👋\n\n` +
       `نود تذكيركم بدفع اشتراك ${data.studentName} للشهر الحالي (${data.month}).\n\n` +
-      `💰 المبلغ المستحق: *${data.amount} ريال*\n` +
+      `💰 المبلغ المستحق: *${data.amount} شيكل*\n` +
       `📅 تاريخ الاستحقاق: ${data.dueDate}\n\n` +
       `للدفع السريع:\n${data.paymentLink}\n\n` +
       `شكراً لتعاونكم 🙏\n` +
@@ -48,10 +48,10 @@ export const messageTemplates: Record<NotificationType, (data: TemplateData) => 
     subject: 'تنبيه: دفعة متأخرة',
     message: `مرحباً ${data.parentName} ⚠️\n\n` +
       `نلفت انتباهكم أن دفع اشتراك ${data.studentName} للشهر ${data.month} *متأخر*.\n\n` +
-      `💰 المبلغ المستحق: *${data.amount} ريال*\n` +
+      `💰 المبلغ المستحق: *${data.amount} شيكل*\n` +
       `⏰ أيام التأخير: ${data.daysOverdue} يوم\n\n` +
       `للدفع الفوري:\n${data.paymentLink}\n\n` +
-      `للاستفسار: 0500000000\n\n` +
+      `للاستفسار: 052-5526570\n\n` +
       `مع خالص التقدير،\n` +
       `إدارة الأكاديمية 🏊‍♂️`,
     urgency: 'high',
@@ -62,7 +62,7 @@ export const messageTemplates: Record<NotificationType, (data: TemplateData) => 
     subject: 'تأكيد الدفع',
     message: `مرحباً ${data.parentName} ✅\n\n` +
       `تم استلام دفع اشتراك ${data.studentName} بنجاح.\n\n` +
-      `💰 المبلغ المدفوع: *${data.amount} ريال*\n` +
+      `💰 المبلغ المدفوع: *${data.amount} شيكل*\n` +
       `📅 الشهر: ${data.month}\n` +
       `🧾 رقم الإيصال: ${data.receiptNumber}\n\n` +
       `شكراً لثقتكم بنا 🙏\n` +

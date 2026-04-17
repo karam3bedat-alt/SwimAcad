@@ -2,14 +2,36 @@
  * Payment Service - Handles payment message generation and fee calculation
  */
 
-export const PAYMENT_CONFIG = {
+export const DEFAULT_COURSE_PRICES = {
+  'دورات عادية مع مواصلات فوق ال ٥ سنوات': 800,
+  'دورات عادية بدون مواصلات فوق ال ٥ سنوات': 600,
+  'دورات عادية مع مواصلات فوق ال ٥ سنوات (زبائن صيف)': 700,
+  'دورات عادية بدون مواصلات فوق ال ٥ سنوات (زبائن صيف)': 500,
+  'دورات نساء (بدون مواصلات)': 600,
+  'دورات رجال (بدون مواصلات)': 600,
+  'دورات خاصة لجميع الأعمار': 1300
+};
+
+export interface PaymentConfig {
+  method: string;
+  bitPhone: string;
+  payboxPhone: string;
+  bankAccount: string;
+  bankName: string;
+  academyName: string;
+  academyPhone: string;
+  coursePrices: Record<string, number>;
+}
+
+export const PAYMENT_CONFIG: PaymentConfig = {
   method: import.meta.env.VITE_PAYMENT_METHOD || 'manual',
-  bitPhone: import.meta.env.VITE_BIT_PHONE || '050-0000000',
-  payboxPhone: import.meta.env.VITE_PAYBOX_PHONE || '050-0000000',
+  bitPhone: import.meta.env.VITE_BIT_PHONE || '052-5526570',
+  payboxPhone: import.meta.env.VITE_PAYBOX_PHONE || '052-7883716',
   bankAccount: import.meta.env.VITE_BANK_ACCOUNT || '12-345-678999',
   bankName: import.meta.env.VITE_BANK_NAME || 'بنك لئومي',
   academyName: import.meta.env.VITE_ACADEMY_NAME || 'أكاديمية السباحة',
-  academyPhone: import.meta.env.VITE_ACADEMY_PHONE || '050-0000000'
+  academyPhone: import.meta.env.VITE_ACADEMY_PHONE || '052-5526570',
+  coursePrices: DEFAULT_COURSE_PRICES
 };
 
 export type PaymentMessageType = 'due' | 'overdue' | 'reminder' | 'confirmed';
@@ -23,19 +45,19 @@ export const generatePaymentMessage = (studentData: any, amount: number, month: 
     due: `مرحباً ${studentData.parent_name || 'ولي الأمر العزيز'} 👋
 
 💰 دفعة اشتراك ${studentData.full_name} لشهر ${month}
-المبلغ: *${amount} ر.س*
+المبلغ: *${amount} ₪*
 
 خيارات الدفع المتاحة:
 
 1️⃣ *Bit (بيط):*
    افتح تطبيق Bit
    أرسل إلى: ${bitPhone}
-   المبلغ: ${amount} ر.س
+   المبلغ: ${amount} ₪
    الملاحظة: ${studentData.full_name} - ${month}
 
 2️⃣ *PayBox (بي بوكس):*
    أرسل إلى: ${payboxPhone}
-   المبلغ: ${amount} ر.س
+   المبلغ: ${amount} ₪
 
 3️⃣ *تحويل بنكي:*
    البنك: ${bankName}
@@ -58,7 +80,7 @@ export const generatePaymentMessage = (studentData: any, amount: number, month: 
 
 لم يتم استلام دفعة ${studentData.full_name} لشهر ${month} حتى الآن.
 
-💰 المبلغ: *${amount} ر.س*
+💰 المبلغ: *${amount} ₪*
 ⏰ يرجى السداد في أقرب وقت ممكن
 
 للدفع السريع:
@@ -76,7 +98,7 @@ export const generatePaymentMessage = (studentData: any, amount: number, month: 
 
 تذكير لطيف بالدفعة الشهرية لـ ${studentData.full_name}.
 
-💰 المبلغ: *${amount} ر.س*
+💰 المبلغ: *${amount} ₪*
 📅 الشهر: ${month}
 
 للدفع السهل والسريع عبر Bit:
@@ -94,7 +116,7 @@ ${bitPhone}
 📋 تفاصيل الدفعة:
 • الطالب: ${studentData.full_name}
 • الشهر: ${month}
-• المبلغ: ${amount} ر.س
+• المبلغ: ${amount} ₪
 • رقم الإيصال: ${studentData.receiptNumber || 'N/A'}
 • التاريخ: ${new Date().toLocaleDateString('ar-EG')}
 
@@ -113,20 +135,15 @@ export const generatePaymentQR = (amount: number, description: string) => {
   return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=bit://${bitPhone}?amount=${amount}&desc=${encodeURIComponent(description)}`;
 };
 
-// Calculate monthly fee based on level
-export const calculateMonthlyFee = (level: string) => {
-  const fees: Record<string, number> = {
-    'مبتدئ': 250,
-    'متوسط': 350,
-    'متقدم': 450,
-    'احترافي': 550
-  };
-  return fees[level] || 300;
+// Calculate monthly fee based on course type
+export const calculateMonthlyFee = (courseType: string, customPrices?: Record<string, number>) => {
+  const prices = customPrices || DEFAULT_COURSE_PRICES;
+  return prices[courseType as keyof typeof DEFAULT_COURSE_PRICES] || prices['دورات عادية بدون مواصلات فوق ال ٥ سنوات'] || 600;
 };
 
 // Format amount
 export const formatAmount = (amount: number) => {
-  return `${amount.toLocaleString()} ر.س`;
+  return `${amount.toLocaleString()} ₪`;
 };
 
 // Calculate days overdue

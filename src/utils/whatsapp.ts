@@ -31,9 +31,9 @@ export const whatsappTemplates = {
   // Welcome message for new student
   welcome: (studentName: string) => 
     `مرحباً،\n\n` +
-    `تم تسجيل ابنكم/ابنتكم *${studentName}* بنجاح في أكاديمية السباحة 🏊‍♂️\n\n` +
+    `تم تسجيل ابنكم/ابنتكم *${studentName}* بنجاح في أكاديمية FOSA للسباحة 🏊‍♂️\n\n` +
     `نتمنى له/لها التوفيق والتعلم السريع.\n\n` +
-    `للاستفسار: 0500000000`,
+    `للاستفسار: 052-5526570`,
 
   // Session reminder
   sessionReminder: (studentName: string, day: string, time: string) => 
@@ -46,13 +46,13 @@ export const whatsappTemplates = {
   // Payment reminder
   paymentReminder: (studentName: string, amount: number, month: string) => 
     `مرحباً،\n\n` +
-    `نود تذكيركم بمستحقات اشتراك *${studentName}* للشهر ${month} بمبلغ ${amount} ريال.\n\n` +
-    `للدفع: [رابط الدفع]\n\n` +
+    `نود تذكيركم بمستحقات اشتراك *${studentName}* للشهر ${month} بمبلغ ${amount} ₪.\n\n` +
+    `يرجى سدادها عبر Bit: 052-5526570\n\n` +
     `شكراً لتعاونكم 🙏`,
 
   // General announcement
   generalAnnouncement: (message: string) => 
     `إعلان هام 📢\n\n` +
     `${message}\n\n` +
-    `أكاديمية السباحة 🏊‍♂️`
+    `أكاديمية FOSA للسباحة 🏊‍♂️`
 };

@@ -55,7 +55,7 @@ export default function Dashboard() {
         />
         <StatCard 
           title="الإيرادات الكلية" 
-          value={`${stats?.totalRevenue?.toLocaleString() || 0} ر.س`} 
+          value={`${stats?.totalRevenue?.toLocaleString() || 0} ₪`} 
           icon={<CreditCard size={24} />} 
           trend={{ value: '8%', isUp: true }}
           color="green"
@@ -86,7 +86,7 @@ export default function Dashboard() {
                     <p className="text-xs text-slate-500 dark:text-slate-400">{payment.date || 'تاريخ غير معروف'}</p>
                   </div>
                 </div>
-                <span className="font-bold text-green-600 dark:text-emerald-400">+{payment.amount} ر.س</span>
+                <span className="font-bold text-green-600 dark:text-emerald-400">+{payment.amount} ₪</span>
               </div>
             )) : (
               <p className="text-center text-slate-500 dark:text-slate-400 py-8">لا توجد مدفوعات مؤخراً</p>

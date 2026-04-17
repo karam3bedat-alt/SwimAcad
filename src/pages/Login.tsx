@@ -1,5 +1,9 @@
 import React, { useState } from 'react';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail 
+} from 'firebase/auth';
 import { auth } from '../firebase';
 import { useToast } from '../lib/ToastContext';
 import { Waves, Eye, EyeOff, Loader2 } from 'lucide-react';
@@ -9,6 +13,33 @@ export default function Login() {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [email, setEmail] = useState('');
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      showToast('يرجى إدخال البريد الإلكتروني أولاً في خانة البريد', 'error');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      showToast('تم إرسال رابط إعادة تعيين كلمة المرور. يرجى مراجعة بريدك (والبريد العشوائي/Spam)', 'success');
+      setResetSent(true);
+    } catch (err: any) {
+      console.error("Reset error:", err);
+      let msg = 'فشل إرسال الرابط';
+      if (err.code === 'auth/user-not-found') {
+        msg = 'هذا البريد غير مسجل في المشروع الحالي. جرب إنشاء حساب جديد.';
+      } else if (err.code === 'auth/invalid-email') {
+        msg = 'البريد الإلكتروني غير صحيح';
+      }
+      showToast(msg, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -75,6 +106,8 @@ export default function Login() {
               name="email"
               type="email"
               required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-blue-500 focus:outline-none transition-colors"
               placeholder="admin@example.com"
             />
@@ -110,12 +143,25 @@ export default function Login() {
             {loading ? (
               <>
                 <Loader2 className="animate-spin" size={20} />
-                جاري تسجيل الدخول...
+                جاري المعالجة...
               </>
             ) : (
               isLogin ? 'تسجيل الدخول' : 'إنشاء الحساب'
             )}
           </button>
+
+          {isLogin && (
+            <div className="text-center mt-2">
+              <button
+                type="button"
+                disabled={loading}
+                onClick={handleForgotPassword}
+                className="text-sm text-blue-600 hover:underline disabled:opacity-50"
+              >
+                نسيت كلمة المرور؟
+              </button>
+            </div>
+          )}
         </form>
 
         <div className="mt-6 text-center">
@@ -130,7 +176,7 @@ export default function Login() {
         {isLogin && (
           <div className="mt-6 p-4 bg-gray-50 rounded-lg text-sm text-gray-600">
             <p className="font-bold mb-2">بيانات الدخول (للمدير):</p>
-            <p className="font-mono">karam.3bedat@gmail.com</p>
+            <p className="font-mono">fosa.academyy@gmail.com</p>
           </div>
         )}
       </div>

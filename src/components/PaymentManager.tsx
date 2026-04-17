@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useStudents } from '../hooks/useStudents';
 import { usePayments } from '../hooks/usePayments';
 import { useSettings, useUpdateSettings } from '../hooks/useSettings';
-import { generatePaymentMessage, calculateMonthlyFee, formatAmount, PAYMENT_CONFIG } from '../services/paymentService';
+import { generatePaymentMessage, calculateMonthlyFee, formatAmount, PAYMENT_CONFIG, PaymentConfig } from '../services/paymentService';
 import { autoNotifier } from '../services/autoNotificationService';
 import { createWhatsAppLink } from '../utils/whatsapp';
 import { 
@@ -51,7 +51,7 @@ export const PaymentManager: React.FC = () => {
     }
   }, [appSettings]);
 
-  const currentConfig = appSettings?.payment_config || PAYMENT_CONFIG;
+  const currentConfig = (appSettings?.payment_config || PAYMENT_CONFIG) as PaymentConfig;
 
   // Arabic Months
   const arabicMonths = [
@@ -99,7 +99,7 @@ export const PaymentManager: React.FC = () => {
                pDate.toLocaleString('ar-EG', { month: 'long', year: 'numeric' }) === selectedMonth;
       });
       
-      const amount = calculateMonthlyFee(student.level);
+      const amount = student.custom_fee || calculateMonthlyFee(student.course_type || student.level, currentConfig.coursePrices);
       const dueDate = new Date();
       dueDate.setDate(1);
       const today = new Date();
@@ -421,6 +421,29 @@ export const PaymentManager: React.FC = () => {
                 onChange={(e) => setTempSettings({ ...tempSettings, bankAccount: e.target.value })}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-100"
               />
+            </div>
+          </div>
+
+          <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+            <h4 className="font-bold text-slate-900 dark:text-slate-100">أسعار الدورات (₪)</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {Object.entries(tempSettings.coursePrices || {}).map(([course, price]) => (
+                <div key={course} className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 truncate block" title={course}>{course}</label>
+                  <input
+                    type="number"
+                    value={price}
+                    onChange={(e) => setTempSettings({
+                      ...tempSettings,
+                      coursePrices: {
+                        ...tempSettings.coursePrices,
+                        [course]: Number(e.target.value)
+                      }
+                    })}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-100"
+                  />
+                </div>
+              ))}
             </div>
           </div>
 
