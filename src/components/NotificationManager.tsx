@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStudents } from '../hooks/useStudents';
 import { usePayments } from '../hooks/usePayments';
+import { useSettings } from '../hooks/useSettings';
 import { scheduler, ScheduledNotification } from '../services/schedulerService';
 import { Bell, Send, Calendar, AlertTriangle, CheckCircle, MessageCircle, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -8,6 +9,7 @@ import toast from 'react-hot-toast';
 export const NotificationManager: React.FC = () => {
   const { data: students, isLoading: loadingStudents } = useStudents();
   const { data: payments, isLoading: loadingPayments } = usePayments();
+  const { data: settings } = useSettings();
   
   const [currentMonth, setCurrentMonth] = useState(
     new Date().toLocaleString('ar-SA', { month: 'long' })
@@ -20,10 +22,11 @@ export const NotificationManager: React.FC = () => {
   // Calculate overdue payments automatically
   useEffect(() => {
     if (students && payments) {
-      const overdue = scheduler.calculateOverduePayments(students, payments, currentMonth);
+      const coursePrices = (settings?.payment_config as any)?.coursePrices;
+      const overdue = scheduler.calculateOverduePayments(students, payments, currentMonth, coursePrices);
       setOverdueList(overdue);
     }
-  }, [students, payments, currentMonth]);
+  }, [students, payments, currentMonth, settings]);
 
   // Generate notifications
   const generateNotifications = () => {

@@ -21,7 +21,7 @@ class NotificationScheduler {
   scheduledNotifications: ScheduledNotification[] = [];
 
   // Calculate overdue payments
-  calculateOverduePayments(students: Student[], payments: Payment[], currentMonthName: string) {
+  calculateOverduePayments(students: Student[], payments: Payment[], currentMonthName: string, coursePrices?: Record<string, number>) {
     const overdue: { student: Student; daysOverdue: number; amount: number; dueDate: string }[] = [];
     
     // Map month name to number (0-11)
@@ -30,7 +30,7 @@ class NotificationScheduler {
       'يوليو': 6, 'أغسطس': 7, 'سبتمبر': 8, 'أكتوبر': 9, 'نوفمبر': 10, 'ديسمبر': 11
     };
     
-    const targetMonth = monthsMap[currentMonthName];
+    const targetMonth = monthsMap[currentMonthName] ?? new Date().getMonth();
     const currentYear = new Date().getFullYear();
 
     students?.forEach(student => {
@@ -38,8 +38,7 @@ class NotificationScheduler {
       const hasPaid = payments?.some(p => {
         const pDate = new Date(p.date);
         return p.student_id === student.id && 
-               pDate.getMonth() === targetMonth && 
-               pDate.getFullYear() === currentYear;
+               p.month === currentMonthName;
       });
 
       if (!hasPaid) {
@@ -49,10 +48,12 @@ class NotificationScheduler {
         const diffTime = today.getTime() - dueDate.getTime();
         const daysOverdue = Math.floor(diffTime / (1000 * 60 * 60 * 24));
         
+        const amount = student.custom_fee || (coursePrices && coursePrices[student.course_type]) || this.calculateMonthlyFee(student.level);
+
         overdue.push({
           student,
           daysOverdue: Math.max(0, daysOverdue),
-          amount: this.calculateMonthlyFee(student.level),
+          amount,
           dueDate: dueDate.toLocaleDateString('ar-SA')
         });
       }

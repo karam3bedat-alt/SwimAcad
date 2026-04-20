@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Search, Filter, Phone, Wallet, Loader2, AlertCircle, Edit2, Trash2, Download, MessageCircle, Award } from 'lucide-react';
+import { Plus, Search, Filter, Phone, Wallet, Loader2, AlertCircle, Edit2, Trash2, Download, MessageCircle, Award, RefreshCw } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Student } from '../types';
 import { Modal } from '../components/Modal';
@@ -140,7 +140,8 @@ export default function Students() {
         message = whatsappTemplates.sessionReminder(student.full_name, 'غداً', '4:00 مساءً');
         break;
       case 'payment':
-        message = whatsappTemplates.paymentReminder(student.full_name, 500, 'الحالي');
+        const amount = student.custom_fee || currentPrices[student.course_type as keyof typeof DEFAULT_COURSE_PRICES] || 600;
+        message = whatsappTemplates.paymentReminder(student.full_name, amount, 'الحالي');
         break;
       case 'custom':
         const customMsg = prompt('اكتب رسالتك:');
@@ -288,6 +289,17 @@ export default function Students() {
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => {
+                        setSelectedStudent(student);
+                        setIsRenewalModalOpen(true);
+                      }}
+                      className="flex items-center gap-1 px-3 py-1.5 text-blue-600 bg-blue-50 dark:bg-blue-900/30 rounded-lg transition-colors font-bold text-xs border border-blue-200 dark:border-blue-700 hover:bg-blue-100"
+                      title="تجديد الاشتراك"
+                    >
+                      <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
+                      <span>{t('renew')}</span>
+                    </button>
                     <div className="flex items-center gap-1">
                       <button 
                         onClick={() => generateCertificatePDF(student)}
@@ -625,6 +637,17 @@ export default function Students() {
       >
         <BroadcastWhatsApp students={students} />
       </Modal>
+
+      {selectedStudent && (
+        <RenewalModal
+          isOpen={isRenewalModalOpen}
+          onClose={() => {
+            setIsRenewalModalOpen(false);
+            setSelectedStudent(null);
+          }}
+          student={selectedStudent}
+        />
+      )}
     </div>
   );
 }
