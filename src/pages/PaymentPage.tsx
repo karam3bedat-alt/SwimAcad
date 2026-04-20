@@ -34,7 +34,7 @@ export const PaymentPage: React.FC = () => {
             تم استلام مبلغ <span className="font-bold text-slate-900 dark:text-slate-100">{amount} ₪</span> لشهر {month}
           </p>
           <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl text-sm text-slate-500 dark:text-slate-400">
-            سيتم إرسال إيصال الدفع عبر الواتساب قريباً. شكراً لثقتكم بأكاديمية السباحة.
+            سيتم إرسال إيصال الدفع عبر الواتساب قريباً. شكراً لثقتكم بـ Sharks Olympic Academy.
           </div>
         </div>
       </div>
@@ -49,7 +49,7 @@ export const PaymentPage: React.FC = () => {
             <CreditCard className="text-blue-600 dark:text-blue-400" size={32} />
           </div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">دفع الاشتراك</h1>
-          <p className="text-slate-500 dark:text-slate-400">أكاديمية السباحة 🏊‍♂️</p>
+          <p className="text-slate-500 dark:text-slate-400">Sharks Olympic Academy 🏊‍♂️</p>
         </div>
 
         <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-2xl mb-8 border border-blue-100 dark:border-blue-800/30">

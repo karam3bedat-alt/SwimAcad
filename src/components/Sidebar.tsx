@@ -71,7 +71,7 @@ export function Sidebar() {
               <Waves size={24} />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-blue-900 dark:text-blue-400">🏊 أكاديمية FOSA</h1>
+              <h1 className="text-xl font-bold text-blue-900 dark:text-blue-400">🏊 Sharks Olympic Academy</h1>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">لتعليم السباحة والرياضة</p>
             </div>
           </div>
@@ -162,7 +162,7 @@ export function Sidebar() {
         </button>
         <div className="flex items-center gap-2">
           <Waves className="text-blue-600" size={24} />
-          <span className="font-bold text-blue-900 dark:text-blue-400">أكاديمية FOSA</span>
+          <span className="font-bold text-blue-900 dark:text-blue-400">Sharks Olympic Academy</span>
         </div>
         <button 
           onClick={toggleDark}

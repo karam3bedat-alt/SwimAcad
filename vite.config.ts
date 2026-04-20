@@ -18,9 +18,9 @@ export default defineConfig(({mode}) => {
         },
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
         manifest: {
-          name: 'أكاديمية السباحة',
-          short_name: 'SwimAcad',
-          description: 'نظام إدارة أكاديمية السباحة',
+          name: 'Sharks Olympic Academy',
+          short_name: 'SharksOlympic',
+          description: 'Sharks Olympic Academy Management System',
           theme_color: '#3B82F6',
           background_color: '#ffffff',
           display: 'standalone',

@@ -39,7 +39,7 @@ export const messageTemplates: Record<NotificationType, (data: TemplateData) => 
       `📅 تاريخ الاستحقاق: ${data.dueDate}\n\n` +
       `للدفع السريع:\n${data.paymentLink}\n\n` +
       `شكراً لتعاونكم 🙏\n` +
-      `أكاديمية السباحة 🏊‍♂️`,
+      `Sharks Olympic Academy 🏊‍♂️`,
     urgency: 'normal',
     sendBeforeDays: 3
   }),
@@ -66,7 +66,7 @@ export const messageTemplates: Record<NotificationType, (data: TemplateData) => 
       `📅 الشهر: ${data.month}\n` +
       `🧾 رقم الإيصال: ${data.receiptNumber}\n\n` +
       `شكراً لثقتكم بنا 🙏\n` +
-      `أكاديمية السباحة 🏊‍♂️`,
+      `Sharks Olympic Academy 🏊‍♂️`,
     urgency: 'low',
     sendBeforeDays: null
   }),
@@ -91,7 +91,7 @@ export const messageTemplates: Record<NotificationType, (data: TemplateData) => 
   [NotificationTypes.WELCOME]: (data) => ({
     subject: 'ترحيب',
     message: `مرحباً ${data.parentName} 👋\n\n` +
-      `تم تسجيل ${data.studentName} بنجاح في أكاديمية السباحة.\n\n` +
+      `تم تسجيل ${data.studentName} بنجاح في Sharks Olympic Academy.\n\n` +
       `نتمنى لكم تجربة ممتعة!`,
     urgency: 'normal',
     sendBeforeDays: null

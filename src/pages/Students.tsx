@@ -14,6 +14,8 @@ import { DEFAULT_COURSE_PRICES, PaymentConfig } from '../services/paymentService
 
 import { useI18n } from '../lib/LanguageContext';
 
+import { RenewalModal } from '../components/RenewalModal';
+
 export default function Students() {
   const { t, language } = useI18n();
   const { data: students = [], isLoading: isLoadingStudents, error: studentsError } = useStudents();
@@ -30,6 +32,7 @@ export default function Students() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isRenewalModalOpen, setIsRenewalModalOpen] = useState(false);
   const [isBroadcastModalOpen, setIsBroadcastModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [searchTerm, setSearchTerm] = useState('');

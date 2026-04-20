@@ -91,7 +91,7 @@ export default function Login() {
           <div className="bg-blue-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
             <Waves size={40} className="text-blue-600" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-800">أكاديمية السباحة</h1>
+          <h1 className="text-2xl font-bold text-gray-800">Sharks Olympic Academy</h1>
           <p className="text-gray-500">
             {isLogin ? 'تسجيل الدخول للنظام' : 'إنشاء حساب مدرب جديد'}
           </p>

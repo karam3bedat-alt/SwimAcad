@@ -3,11 +3,16 @@ import { StatCard } from '../components/Card';
 import { Users, Calendar, CreditCard, Clock, TrendingUp, Loader2, AlertCircle } from 'lucide-react';
 import { useDashboardStats } from '../hooks/useDashboard';
 import StatsCharts from '../components/StatsCharts';
+import { SmartInsights } from '../components/SmartInsights';
+import { useStudents } from '../hooks/useStudents';
+import { usePayments } from '../hooks/usePayments';
 
 import { useI18n } from '../lib/LanguageContext';
 
 export default function Dashboard() {
   const { data: stats, isLoading, error } = useDashboardStats();
+  const { data: students = [] } = useStudents();
+  const { data: payments = [] } = usePayments();
   const { t, language } = useI18n();
 
   if (isLoading) {
@@ -73,6 +78,11 @@ export default function Dashboard() {
       </div>
 
       <StatsCharts />
+
+      {/* Smart Insights Section */}
+      <div className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
+        <SmartInsights students={students} payments={payments} />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">

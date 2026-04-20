@@ -29,7 +29,7 @@ export const PAYMENT_CONFIG: PaymentConfig = {
   payboxPhone: import.meta.env.VITE_PAYBOX_PHONE || '052-7883716',
   bankAccount: import.meta.env.VITE_BANK_ACCOUNT || '12-345-678999',
   bankName: import.meta.env.VITE_BANK_NAME || 'بنك لئومي',
-  academyName: import.meta.env.VITE_ACADEMY_NAME || 'أكاديمية السباحة',
+  academyName: import.meta.env.VITE_ACADEMY_NAME || 'Sharks Olympic Academy',
   academyPhone: import.meta.env.VITE_ACADEMY_PHONE || '052-5526570',
   coursePrices: DEFAULT_COURSE_PRICES
 };

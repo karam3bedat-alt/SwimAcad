@@ -6,7 +6,7 @@ export const generateStudentsPDF = (students: any[]) => {
   
   // Title
   doc.setFontSize(20);
-  doc.text('تقرير الطلاب - أكاديمية FOSA', 105, 20, { align: 'center' });
+  doc.text('تقرير الطلاب - Sharks Olympic Academy', 105, 20, { align: 'center' });
   
   // Date
   doc.setFontSize(12);
@@ -44,7 +44,7 @@ export const generateAttendancePDF = (bookings: any[]) => {
   const doc = new jsPDF();
   
   doc.setFontSize(20);
-  doc.text('تقرير الحضور والغياب - أكاديمية FOSA', 105, 20, { align: 'center' });
+  doc.text('تقرير الحضور والغياب - Sharks Olympic Academy', 105, 20, { align: 'center' });
   
   doc.setFontSize(12);
   doc.text(`تاريخ التقرير: ${new Date().toLocaleDateString('ar-EG')}`, 105, 30, { align: 'center' });
@@ -72,7 +72,7 @@ export const generatePaymentsPDF = (payments: any[]) => {
   const doc = new jsPDF();
   
   doc.setFontSize(20);
-  doc.text('تقرير المدفوعات - أكاديمية FOSA', 105, 20, { align: 'center' });
+  doc.text('تقرير المدفوعات - Sharks Olympic Academy', 105, 20, { align: 'center' });
   
   const total = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
   
@@ -118,7 +118,7 @@ export const generateCertificatePDF = (student: any) => {
   // Logo Placeholder / Brand Name
   doc.setFontSize(30);
   doc.setTextColor(30, 58, 138); // Navy
-  doc.text('أكاديمية FOSA للسباحة والرياضة', width / 2, 40, { align: 'center' });
+  doc.text('Sharks Olympic Academy', width / 2, 40, { align: 'center' });
   
   doc.setFontSize(50);
   doc.setTextColor(59, 130, 246); // Blue

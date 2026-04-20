@@ -1,7 +1,7 @@
 {
-  "name": "أكاديمية السباحة",
-  "short_name": "SwimAcad",
-  "description": "نظام إدارة أكاديمية السباحة",
+  "name": "Sharks Olympic Academy",
+  "short_name": "SharksOlympic",
+  "description": "Sharks Olympic Academy Management System",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

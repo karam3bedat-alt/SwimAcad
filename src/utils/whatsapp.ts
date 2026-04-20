@@ -31,7 +31,7 @@ export const whatsappTemplates = {
   // Welcome message for new student
   welcome: (studentName: string) => 
     `مرحباً،\n\n` +
-    `تم تسجيل ابنكم/ابنتكم *${studentName}* بنجاح في أكاديمية FOSA للسباحة 🏊‍♂️\n\n` +
+    `تم تسجيل ابنكم/ابنتكم *${studentName}* بنجاح في Sharks Olympic Academy 🏊‍♂️\n\n` +
     `نتمنى له/لها التوفيق والتعلم السريع.\n\n` +
     `للاستفسار: 052-5526570`,
 
@@ -54,5 +54,5 @@ export const whatsappTemplates = {
   generalAnnouncement: (message: string) => 
     `إعلان هام 📢\n\n` +
     `${message}\n\n` +
-    `أكاديمية FOSA للسباحة 🏊‍♂️`
+    `Sharks Olympic Academy 🏊‍♂️`
 };
