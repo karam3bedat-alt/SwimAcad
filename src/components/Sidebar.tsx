@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
+import { useI18n } from '../lib/LanguageContext';
 import { 
   LayoutDashboard, 
   Users, 
@@ -16,7 +17,9 @@ import {
   Moon,
   Sun,
   Search,
-  Bell
+  Bell,
+  Languages,
+  Settings
 } from 'lucide-react';
 import { auth } from '../firebase';
 import { signOut } from 'firebase/auth';
@@ -24,24 +27,26 @@ import { useAuth } from '../AuthContext';
 import { useToast } from '../lib/ToastContext';
 import { useTheme } from '../context/ThemeContext';
 
-const menuItems = [
-  { name: 'لوحة التحكم', path: '/', icon: LayoutDashboard, roles: ['admin', 'coach'] },
-  { name: 'إدارة الطلاب', path: '/students', icon: Users, roles: ['admin', 'coach'] },
-  { name: 'المدربون', path: '/coaches', icon: UserRound, roles: ['admin'] },
-  { name: 'جدولة الحصص', path: '/sessions', icon: CalendarDays, roles: ['admin'] },
-  { name: 'الحجوزات', path: '/bookings', icon: BookOpenCheck, roles: ['admin', 'coach'] },
-  { name: 'الحضور والغياب', path: '/attendance', icon: ClipboardCheck, roles: ['admin', 'coach'] },
-  { name: 'المدفوعات', path: '/payments', icon: CreditCard, roles: ['admin'] },
-  { name: 'الإشعارات', path: '/notifications', icon: Bell, roles: ['admin'] },
-  { name: 'التقارير', path: '/reports', icon: BarChart3, roles: ['admin'] },
-];
-
 export function Sidebar() {
   const { role, user, isAdmin } = useAuth();
   const { showToast } = useToast();
   const { isDark, toggleDark } = useTheme();
+  const { language, setLanguage, t } = useI18n();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const menuItems = [
+    { name: t('dashboard'), path: '/', icon: LayoutDashboard, roles: ['admin', 'coach'] },
+    { name: t('students'), path: '/students', icon: Users, roles: ['admin', 'coach'] },
+    { name: t('coaches'), path: '/coaches', icon: UserRound, roles: ['admin'] },
+    { name: t('sessions'), path: '/sessions', icon: CalendarDays, roles: ['admin'] },
+    { name: t('bookings'), path: '/bookings', icon: BookOpenCheck, roles: ['admin', 'coach'] },
+    { name: t('attendance'), path: '/attendance', icon: ClipboardCheck, roles: ['admin', 'coach'] },
+    { name: t('payments'), path: '/payments', icon: CreditCard, roles: ['admin'] },
+    { name: t('notifications'), path: '/notifications', icon: Bell, roles: ['admin'] },
+    { name: t('reports'), path: '/reports', icon: BarChart3, roles: ['admin'] },
+    { name: t('settings'), path: '/settings', icon: Settings, roles: ['admin'] },
+  ];
 
   const handleLogout = async () => {
     try {
@@ -70,12 +75,22 @@ export function Sidebar() {
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">لتعليم السباحة والرياضة</p>
             </div>
           </div>
-          <button 
-            onClick={toggleDark}
-            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-yellow-400 transition-colors lg:hidden"
-          >
-            {isDark ? <Sun size={20} /> : <Moon size={20} />}
-          </button>
+          <div className="flex items-center gap-1">
+            <button 
+              onClick={() => setLanguage(language === 'ar' ? 'he' : 'ar')}
+              className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-blue-400 transition-colors flex items-center gap-1"
+              title={language === 'ar' ? 'עברית' : 'العربية'}
+            >
+              <Languages size={20} />
+              <span className="text-[10px] font-bold uppercase">{language === 'ar' ? 'HE' : 'AR'}</span>
+            </button>
+            <button 
+              onClick={toggleDark}
+              className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-yellow-400 transition-colors lg:hidden"
+            >
+              {isDark ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
+          </div>
         </div>
 
         <div className="relative w-full mb-4 lg:hidden">
@@ -124,7 +139,7 @@ export function Sidebar() {
           className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all duration-200 font-bold"
         >
           <LogOut size={20} />
-          <span>تسجيل الخروج</span>
+          <span>{t('logout')}</span>
         </button>
       </div>
     </div>

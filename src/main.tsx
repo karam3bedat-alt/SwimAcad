@@ -30,10 +30,14 @@ const queryClient = new QueryClient({
   }
 });
 
+import {LanguageProvider} from './lib/LanguageContext.tsx';
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <LanguageProvider>
+        <App />
+      </LanguageProvider>
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
   </StrictMode>,

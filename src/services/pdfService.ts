@@ -97,3 +97,59 @@ export const generatePaymentsPDF = (payments: any[]) => {
   
   doc.save(`payments-report-${new Date().toISOString().split('T')[0]}.pdf`);
 };
+
+export const generateCertificatePDF = (student: any) => {
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const width = doc.internal.pageSize.getWidth();
+  const height = doc.internal.pageSize.getHeight();
+
+  // Decorative border
+  doc.setLineWidth(2);
+  doc.setDrawColor(59, 130, 246);
+  doc.rect(10, 10, width - 20, height - 20);
+  doc.setLineWidth(0.5);
+  doc.rect(12, 12, width - 24, height - 24);
+
+  // Logo Placeholder / Brand Name
+  doc.setFontSize(30);
+  doc.setTextColor(30, 58, 138); // Navy
+  doc.text('أكاديمية FOSA للسباحة والرياضة', width / 2, 40, { align: 'center' });
+  
+  doc.setFontSize(50);
+  doc.setTextColor(59, 130, 246); // Blue
+  doc.text('شهادة تقدير', width / 2, 70, { align: 'center' });
+
+  doc.setFontSize(18);
+  doc.setTextColor(71, 85, 105); // Slate-600
+  doc.text('تشهد الأكاديمية بأن الطالب/ة', width / 2, 90, { align: 'center' });
+
+  doc.setFontSize(32);
+  doc.setTextColor(0, 0, 0);
+  doc.text(student.full_name, width / 2, 110, { align: 'center' });
+
+  doc.setFontSize(18);
+  doc.setTextColor(71, 85, 105);
+  doc.text(`قد أكمل بنجاح تدريبات السباحة لمستوى: ${student.level}`, width / 2, 130, { align: 'center' });
+  doc.text(`نوع الدورة: ${student.course_type || 'تعليم سباحة'}`, width / 2, 140, { align: 'center' });
+
+  doc.setFontSize(14);
+  doc.text('نتمنى لك مزيداً من التقدم والنجاح في مسيرتك الرياضية', width / 2, 160, { align: 'center' });
+
+  // Signatures
+  doc.setFontSize(14);
+  doc.text('توقيع مدير الأكاديمية', width / 4, 185, { align: 'center' });
+  doc.line(width / 4 - 20, 192, width / 4 + 20, 192);
+
+  doc.text('توقيع المدرب', (width * 3) / 4, 185, { align: 'center' });
+  doc.line((width * 3) / 4 - 20, 192, (width * 3) / 4 + 20, 192);
+
+  doc.setFontSize(12);
+  doc.text(`تاريخ الإصدار: ${new Date().toLocaleDateString('ar-EG')}`, width / 2, 195, { align: 'center' });
+
+  doc.save(`Certificate-${student.full_name}.pdf`);
+};

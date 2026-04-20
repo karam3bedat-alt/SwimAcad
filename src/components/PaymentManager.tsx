@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useStudents } from '../hooks/useStudents';
-import { usePayments } from '../hooks/usePayments';
+import { usePayments, useAddPayment } from '../hooks/usePayments';
 import { useSettings, useUpdateSettings } from '../hooks/useSettings';
 import { generatePaymentMessage, calculateMonthlyFee, formatAmount, PAYMENT_CONFIG, PaymentConfig } from '../services/paymentService';
 import { autoNotifier } from '../services/autoNotificationService';
@@ -31,6 +31,7 @@ export const PaymentManager: React.FC = () => {
   const { isAdmin } = useAuth();
   const { data: students, isLoading: studentsLoading } = useStudents();
   const { data: payments, isLoading: paymentsLoading } = usePayments();
+  const { mutate: addPayment } = useAddPayment();
   const { data: appSettings, isLoading: settingsLoading } = useSettings();
   const { mutate: updateSettings } = useUpdateSettings();
   
@@ -99,7 +100,12 @@ export const PaymentManager: React.FC = () => {
                pDate.toLocaleString('ar-EG', { month: 'long', year: 'numeric' }) === selectedMonth;
       });
       
-      const amount = student.custom_fee || calculateMonthlyFee(student.course_type || student.level, currentConfig.coursePrices);
+      let baseAmount = student.custom_fee || calculateMonthlyFee(student.course_type || student.level, currentConfig.coursePrices);
+      
+      // Loyalty discount: If scholar has >= 100 points, they get a discount (e.g., 50 NIS)
+      const hasLoyaltyDiscount = (student.loyalty_points || 0) >= 100;
+      const amount = hasLoyaltyDiscount ? Math.max(0, baseAmount - 50) : baseAmount;
+
       const dueDate = new Date();
       dueDate.setDate(1);
       const today = new Date();
@@ -127,7 +133,17 @@ export const PaymentManager: React.FC = () => {
 
   // Confirm payment receipt
   const confirmPayment = async (student: any) => {
-    const receiptNum = `REC-${Date.now()}-${student.id}`;
+    try {
+      await addPayment({
+        student_id: student.id,
+        student_name: student.full_name,
+        amount: student.amount,
+        date: new Date().toISOString(),
+        method: 'نقدي',
+        month: selectedMonth
+      });
+
+      const receiptNum = `REC-${Date.now()}-${student.id}`;
     const message = generatePaymentMessage(
       { ...student, receiptNumber: receiptNum }, 
       student.amount, 
@@ -140,6 +156,9 @@ export const PaymentManager: React.FC = () => {
     window.open(link, '_blank');
     
     toast.success(`✅ تم تأكيد استلام دفع ${student.full_name}`);
+    } catch (error) {
+      toast.error('فشل تأكيد الدفعة');
+    }
   };
 
   // Send bulk requests
@@ -494,12 +513,13 @@ const OverviewTab = ({ students, onSend, onConfirm }: { students: any[], onSend:
     <table className="w-full text-right">
       <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
         <tr>
-          <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">الطالب</th>
-          <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">المستوى</th>
-          <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">المبلغ</th>
-          <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">الحالة</th>
-          <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">أيام التأخير</th>
-          <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">الإجراءات</th>
+          <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">الطالب</th>
+          <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">المستوى</th>
+          <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">المبلغ</th>
+          <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">النقاط</th>
+          <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">الحالة</th>
+          <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">أيام التأخير</th>
+          <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">الإجراءات</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
@@ -510,7 +530,17 @@ const OverviewTab = ({ students, onSend, onConfirm }: { students: any[], onSend:
               <p className="text-xs text-slate-500 dark:text-slate-400">{student.phone || student.parent_phone}</p>
             </td>
             <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{student.level}</td>
-            <td className="px-6 py-4 font-bold text-slate-900 dark:text-slate-100">{formatAmount(student.amount)}</td>
+            <td className="px-6 py-4 font-bold text-slate-900 dark:text-slate-100">
+              {formatAmount(student.amount)}
+              {(student.loyalty_points || 0) >= 100 && (
+                <span className="block text-[10px] text-emerald-600 font-bold">تم تطبيق خصم الولاء ✨</span>
+              )}
+            </td>
+            <td className="px-6 py-4">
+              <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-lg text-xs font-bold">
+                {student.loyalty_points || 0} نقطة
+              </span>
+            </td>
             <td className="px-6 py-4">
               <StatusBadge status={student.status} daysOverdue={student.daysOverdue} />
             </td>

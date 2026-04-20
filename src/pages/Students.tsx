@@ -1,18 +1,21 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Search, Filter, Phone, Wallet, Loader2, AlertCircle, Edit2, Trash2, Download, MessageCircle } from 'lucide-react';
+import { Plus, Search, Filter, Phone, Wallet, Loader2, AlertCircle, Edit2, Trash2, Download, MessageCircle, Award } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Student } from '../types';
 import { Modal } from '../components/Modal';
 import { toast } from 'react-hot-toast';
 import { useStudents, useAddStudent, useUpdateStudent, useDeleteStudent } from '../hooks/useStudents';
 import { usePayments } from '../hooks/usePayments';
-import { generateStudentsPDF } from '../services/pdfService';
+import { generateStudentsPDF, generateCertificatePDF } from '../services/pdfService';
 import { createWhatsAppLink, whatsappTemplates } from '../utils/whatsapp';
 import { BroadcastWhatsApp } from '../components/BroadcastWhatsApp';
 import { useSettings } from '../hooks/useSettings';
 import { DEFAULT_COURSE_PRICES, PaymentConfig } from '../services/paymentService';
 
+import { useI18n } from '../lib/LanguageContext';
+
 export default function Students() {
+  const { t, language } = useI18n();
   const { data: students = [], isLoading: isLoadingStudents, error: studentsError } = useStudents();
   const { data: payments = [], isLoading: isLoadingPayments } = usePayments();
   const { data: appSettings } = useSettings();
@@ -30,7 +33,7 @@ export default function Students() {
   const [isBroadcastModalOpen, setIsBroadcastModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterLevel, setFilterLevel] = useState('الكل');
+  const [filterLevel, setFilterLevel] = useState(t('all_levels'));
 
   const balances = useMemo(() => {
     const newBalances: Record<string, number> = {};
@@ -56,7 +59,9 @@ export default function Students() {
           age: Number(formData.get('age')),
           level: (formData.get('level') as any) || 'مبتدئ',
           course_type: (formData.get('course_type') as string) || '',
+          birth_date: (formData.get('birth_date') as string) || '',
           custom_fee: formData.get('custom_fee') ? Number(formData.get('custom_fee')) : null,
+          loyalty_points: Number(formData.get('loyalty_points')) || 0,
           registration_date: new Date().toISOString()
         });
       toast.success('تمت إضافة الطالب بنجاح', { id: toastId });
@@ -84,7 +89,9 @@ export default function Students() {
             age: Number(formData.get('age')),
             level: (formData.get('level') as any) || 'مبتدئ',
             course_type: (formData.get('course_type') as string) || '',
-            custom_fee: formData.get('custom_fee') ? Number(formData.get('custom_fee')) : null
+            birth_date: (formData.get('birth_date') as string) || '',
+            custom_fee: formData.get('custom_fee') ? Number(formData.get('custom_fee')) : null,
+            loyalty_points: Number(formData.get('loyalty_points')) || 0
           }
         });
       toast.success('تم تحديث بيانات الطالب بنجاح', { id: toastId });
@@ -110,7 +117,7 @@ export default function Students() {
   const filteredStudents = (students || []).filter(s => {
     const matchesSearch = s.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                          (s.phone || s.parent_phone)?.includes(searchTerm);
-    const matchesLevel = filterLevel === 'الكل' || s.level === filterLevel;
+    const matchesLevel = filterLevel === t('all_levels') || s.level === filterLevel;
     return matchesSearch && matchesLevel;
   });
 
@@ -151,7 +158,7 @@ export default function Students() {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
         <Loader2 className="animate-spin text-blue-600" size={48} />
-        <p className="text-slate-500 font-medium">جاري تحميل الطلاب...</p>
+        <p className="text-slate-500 font-medium">{t('loading_data')}</p>
       </div>
     );
   }
@@ -160,8 +167,8 @@ export default function Students() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">إدارة الطلاب</h2>
-          <p className="text-slate-500 dark:text-slate-400">عرض وإدارة جميع الطلاب المسجلين في الأكاديمية.</p>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{t('students')}</h2>
+          <p className="text-slate-500 dark:text-slate-400">{t('all_students')}</p>
         </div>
         <div className="flex items-center gap-3">
           <button 
@@ -169,7 +176,7 @@ export default function Students() {
             className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors"
           >
             <MessageCircle size={20} />
-            <span>رسائل جماعية</span>
+            <span>{t('broadcast_messages')}</span>
           </button>
           <button 
             onClick={() => generateStudentsPDF(filteredStudents)}
@@ -177,14 +184,14 @@ export default function Students() {
             className="bg-emerald-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 disabled:opacity-50"
           >
             <Download size={20} />
-            <span>تصدير PDF</span>
+            <span>{t('export_pdf')}</span>
           </button>
           <button 
             onClick={() => { setIsModalOpen(true); }}
             className="bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
           >
             <Plus size={20} />
-            <span>إضافة طالب جديد</span>
+            <span>{t('add_new_student')}</span>
           </button>
         </div>
       </div>
@@ -201,7 +208,7 @@ export default function Students() {
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input 
             type="text" 
-            placeholder="بحث بالاسم أو رقم الهاتف..." 
+            placeholder={t('search')} 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-2.5 pr-10 pl-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none dark:text-slate-200"
@@ -214,11 +221,11 @@ export default function Students() {
             onChange={(e) => setFilterLevel(e.target.value)}
             className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none min-w-[140px] dark:text-slate-200"
           >
-            <option value="الكل">جميع المستويات</option>
-            <option value="مبتدئ">مبتدئ</option>
-            <option value="متوسط">متوسط</option>
-            <option value="متقدم">متقدم</option>
-            <option value="احترافي">احترافي</option>
+            <option value={t('all_levels')}>{t('all_levels')}</option>
+            <option value={t('beginner')}>{t('beginner')}</option>
+            <option value={t('intermediate')}>{t('intermediate')}</option>
+            <option value={t('advanced')}>{t('advanced')}</option>
+            <option value={t('professional')}>{t('professional')}</option>
           </select>
         </div>
       </div>
@@ -227,12 +234,13 @@ export default function Students() {
         <table className="w-full text-right">
           <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
             <tr>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">الطالب</th>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">الدورة</th>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">ولي الأمر</th>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">إجمالي المدفوع</th>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">تاريخ التسجيل</th>
-              <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">الإجراءات</th>
+              <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">{t('students')}</th>
+              <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">{t('course_type')}</th>
+              <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">{t('parent_name')}</th>
+              <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">{t('loyalty_points')}</th>
+              <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">{t('total_paid')}</th>
+              <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">{t('registration_date')}</th>
+              <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">{t('actions')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
@@ -259,6 +267,12 @@ export default function Students() {
                   <p className="text-sm text-slate-700 dark:text-slate-300">{student.parent_name}</p>
                 </td>
                 <td className="px-6 py-4">
+                  <div className="flex items-center gap-1 text-sm font-bold text-amber-600">
+                    <Award size={14} />
+                    <span>{student.loyalty_points || 0}</span>
+                  </div>
+                </td>
+                <td className="px-6 py-4">
                   <div className="flex items-center gap-1 text-sm font-bold text-emerald-600 dark:text-emerald-400">
                     <Wallet size={14} />
                     <span>{balances[student.id] || 0} ₪</span>
@@ -272,6 +286,14 @@ export default function Students() {
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1">
+                      <button 
+                        onClick={() => generateCertificatePDF(student)}
+                        className="flex items-center gap-1 px-3 py-1.5 text-amber-600 bg-amber-50 dark:bg-amber-900/30 rounded-lg transition-colors font-bold text-xs border border-amber-200 dark:border-amber-700"
+                        title={t('generate_certificate')}
+                      >
+                        <Award size={14} />
+                        <span>{t('certificate')}</span>
+                      </button>
                       <button 
                         onClick={() => handleWhatsAppClick(student, 'welcome')}
                         className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg transition-colors"
@@ -321,12 +343,12 @@ export default function Students() {
       <Modal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
-        title="إضافة طالب جديد"
+        title={t('add_new_student')}
         size="lg"
       >
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">الاسم الكامل</label>
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">{t('full_name')}</label>
             <input 
               name="full_name" 
               required 
@@ -334,7 +356,7 @@ export default function Students() {
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">العمر</label>
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">{t('age')}</label>
             <input 
               name="age" 
               type="number"
@@ -343,7 +365,7 @@ export default function Students() {
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">نوع الدورة</label>
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">{t('course_type')}</label>
             <select 
               name="course_type" 
               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
@@ -354,29 +376,38 @@ export default function Students() {
             </select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">سعر مخصص (₪)</label>
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">{t('custom_fee')}</label>
             <input 
               name="custom_fee" 
               type="number"
-              placeholder="اتركه فارغاً للسعر التلقائي"
+              placeholder={language === 'ar' ? 'اتركه فارغاً للسعر التلقائي' : 'השאר ריק למחיר ברירת מחדל'}
               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">المستوى</label>
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">{t('level')}</label>
             <select 
               name="level" 
               defaultValue="مبتدئ"
               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
             >
-              <option value="مبتدئ">مبتدئ</option>
-              <option value="متوسط">متوسط</option>
-              <option value="متقدم">متقدم</option>
-              <option value="احترافي">احترافي</option>
+              <option value="مبتدئ">{t('beginner')}</option>
+              <option value="متوسط">{t('intermediate')}</option>
+              <option value="متقدم">{t('advanced')}</option>
+              <option value="احترافي">{t('professional')}</option>
             </select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">اسم ولي الأمر</label>
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">{t('birth_date')}</label>
+            <input 
+              name="birth_date" 
+              type="date"
+              required 
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">{t('parent_name')}</label>
             <input 
               name="parent_name" 
               required 
@@ -384,15 +415,24 @@ export default function Students() {
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">رقم الهاتف</label>
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">{t('phone')}</label>
             <input 
               name="phone" 
               required 
               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
             />
           </div>
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">{t('loyalty_points')}</label>
+            <input 
+              name="loyalty_points" 
+              type="number"
+              defaultValue={0}
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
+            />
+          </div>
           <div className="space-y-2 md:col-span-2">
-            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">ملاحظات طبية</label>
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">{t('medical_notes')}</label>
             <textarea 
               name="medical_notes" 
               rows={3}
@@ -405,14 +445,14 @@ export default function Students() {
               onClick={() => setIsModalOpen(false)}
               className="px-6 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
             >
-              إلغاء
+              {t('cancel')}
             </button>
             <button 
               type="submit"
               disabled={addStudentMutation.isPending}
               className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 disabled:opacity-50"
             >
-              {addStudentMutation.isPending ? <Loader2 className="animate-spin" size={20} /> : 'إضافة الطالب'}
+              {addStudentMutation.isPending ? <Loader2 className="animate-spin" size={20} /> : t('save')}
             </button>
           </div>
         </form>
@@ -421,13 +461,13 @@ export default function Students() {
       <Modal 
         isOpen={isEditModalOpen} 
         onClose={() => setIsEditModalOpen(false)} 
-        title="تعديل بيانات الطالب"
+        title={t('edit_student_data')}
         size="lg"
       >
         {selectedStudent && (
           <form onSubmit={handleEdit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">الاسم الكامل</label>
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">{t('full_name')}</label>
               <input 
                 name="full_name" 
                 defaultValue={selectedStudent.full_name}
@@ -436,7 +476,7 @@ export default function Students() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">العمر</label>
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">{t('age')}</label>
               <input 
                 name="age" 
                 type="number"
@@ -446,7 +486,7 @@ export default function Students() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">نوع الدورة</label>
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">{t('course_type')}</label>
               <select 
                 name="course_type" 
                 defaultValue={selectedStudent.course_type}
@@ -458,30 +498,40 @@ export default function Students() {
               </select>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">سعر مخصص (₪)</label>
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">{t('custom_fee')}</label>
               <input 
                 name="custom_fee" 
                 type="number"
                 defaultValue={selectedStudent.custom_fee}
-                placeholder="اتركه فارغاً للسعر التلقائي"
+                placeholder={language === 'ar' ? 'اتركه فارغاً للسعر التلقائي' : 'השאר ריק למחיר ברירת מחדל'}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">المستوى</label>
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">{t('level')}</label>
               <select 
                 name="level" 
                 defaultValue={selectedStudent.level}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
               >
-                <option value="مبتدئ">مبتدئ</option>
-                <option value="متوسط">متوسط</option>
-                <option value="متقدم">متقدم</option>
-                <option value="احترافي">احترافي</option>
+                <option value="مبتدئ">{t('beginner')}</option>
+                <option value="متوسط">{t('intermediate')}</option>
+                <option value="متقدم">{t('advanced')}</option>
+                <option value="احترافي">{t('professional')}</option>
               </select>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">اسم ولي الأمر</label>
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">{t('birth_date')}</label>
+              <input 
+                name="birth_date" 
+                type="date"
+                defaultValue={selectedStudent.birth_date}
+                required 
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">{t('parent_name')}</label>
               <input 
                 name="parent_name" 
                 defaultValue={selectedStudent.parent_name}
@@ -490,7 +540,7 @@ export default function Students() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">رقم الهاتف</label>
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">{t('phone')}</label>
               <input 
                 name="phone" 
                 defaultValue={selectedStudent.phone || selectedStudent.parent_phone}
@@ -498,8 +548,17 @@ export default function Students() {
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
               />
             </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">{t('loyalty_points')}</label>
+              <input 
+                name="loyalty_points" 
+                type="number"
+                defaultValue={selectedStudent.loyalty_points || 0}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
+              />
+            </div>
             <div className="space-y-2 md:col-span-2">
-              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">ملاحظات طبية</label>
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">{t('medical_notes')}</label>
               <textarea 
                 name="medical_notes" 
                 defaultValue={selectedStudent.medical_notes}
@@ -513,14 +572,14 @@ export default function Students() {
                 onClick={() => setIsEditModalOpen(false)}
                 className="px-6 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
               >
-                إلغاء
+                {t('cancel')}
               </button>
               <button 
                 type="submit"
                 disabled={updateStudentMutation.isPending}
                 className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 disabled:opacity-50"
               >
-                {updateStudentMutation.isPending ? <Loader2 className="animate-spin" size={20} /> : 'تحديث البيانات'}
+                {updateStudentMutation.isPending ? <Loader2 className="animate-spin" size={20} /> : t('update_data')}
               </button>
             </div>
           </form>
@@ -530,12 +589,11 @@ export default function Students() {
       <Modal 
         isOpen={isDeleteModalOpen} 
         onClose={() => setIsDeleteModalOpen(false)} 
-        title="تأكيد الحذف"
+        title={t('confirm_delete')}
       >
         <div className="space-y-4">
           <p className="text-slate-600 dark:text-slate-400">
-            هل أنت متأكد من رغبتك في حذف الطالب <span className="font-bold text-slate-900 dark:text-slate-100">{selectedStudent?.full_name}</span>؟
-            هذا الإجراء لا يمكن التراجع عنه.
+            {t('confirm_delete_student')} <span className="font-bold text-slate-900 dark:text-slate-100">{selectedStudent?.full_name}</span>
           </p>
           <div className="flex justify-end gap-3 pt-4">
             <button 
@@ -543,14 +601,14 @@ export default function Students() {
               onClick={() => setIsDeleteModalOpen(false)}
               className="px-6 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
             >
-              إلغاء
+              {t('cancel')}
             </button>
             <button 
               onClick={handleDelete}
               disabled={deleteStudentMutation.isPending}
               className="px-6 py-2.5 rounded-xl bg-rose-600 text-white font-bold hover:bg-rose-700 transition-colors shadow-lg shadow-rose-200 disabled:opacity-50"
             >
-              {deleteStudentMutation.isPending ? <Loader2 className="animate-spin" size={20} /> : 'تأكيد الحذف'}
+              {deleteStudentMutation.isPending ? <Loader2 className="animate-spin" size={20} /> : t('confirm_delete')}
             </button>
           </div>
         </div>

@@ -10,6 +10,8 @@ export interface Student {
   parent_phone?: string;
   medical_notes: string;
   registration_date: string;
+  loyalty_points?: number;
+  birth_date?: string;
 }
 
 export interface Coach {
@@ -55,8 +57,11 @@ export interface Payment {
   student_name?: string;
   amount: number;
   date: string;
+  month?: string;
   method: 'نقدي' | 'تحويل';
-  notes: string;
+  notes?: string;
+  received_by?: string;
+  loyalty_points_used?: number;
 }
 
 export interface AppSettings {
@@ -67,5 +72,7 @@ export interface AppSettings {
     bankName: string;
     academyName: string;
     academyPhone: string;
+    coursePrices?: Record<string, number>;
   };
+  last_updated?: string;
 }

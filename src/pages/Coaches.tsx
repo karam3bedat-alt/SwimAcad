@@ -4,8 +4,10 @@ import { Coach } from '../types';
 import { Modal } from '../components/Modal';
 import { useToast } from '../lib/ToastContext';
 import { useTrainers, useAddTrainer, useUpdateTrainer, useDeleteTrainer } from '../hooks/useTrainers';
+import { useI18n } from '../lib/LanguageContext';
 
 export default function Coaches() {
+  const { t } = useI18n();
   const { showToast, hideToast } = useToast();
   const { data: coaches = [], isLoading, error } = useTrainers();
   
@@ -75,10 +77,10 @@ export default function Coaches() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 text-right">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">المدربون</h2>
+          <h2 className="text-2xl font-bold text-slate-900">{t('coaches')}</h2>
           <p className="text-slate-500">عرض طاقم التدريب وتخصصاتهم.</p>
         </div>
         <button 
@@ -86,7 +88,7 @@ export default function Coaches() {
           className="bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
         >
           <Plus size={20} />
-          <span>إضافة مدرب جديد</span>
+          <span>{t('add_trainer')}</span>
         </button>
       </div>
 
@@ -168,11 +170,11 @@ export default function Coaches() {
           setIsEditModalOpen(false);
           setSelectedCoach(null);
         }} 
-        title={isEditModalOpen ? "تعديل بيانات المدرب" : "إضافة مدرب جديد"}
+        title={isEditModalOpen ? t('edit_trainer') : t('add_trainer')}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">الاسم الكامل</label>
+            <label className="text-sm font-bold text-slate-700">{t('full_name')}</label>
             <input 
               name="name" 
               required 
@@ -181,7 +183,7 @@ export default function Coaches() {
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">رقم الهاتف</label>
+            <label className="text-sm font-bold text-slate-700">{t('phone')}</label>
             <input 
               name="phone" 
               required 
@@ -190,7 +192,7 @@ export default function Coaches() {
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">التخصص</label>
+            <label className="text-sm font-bold text-slate-700">{t('specialty')}</label>
             <input 
               name="specialty" 
               placeholder="مثال: سباحة فراشة، تدريب أطفال"

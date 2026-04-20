@@ -129,7 +129,7 @@ export const trainersService = {
   async getAll(): Promise<Coach[]> {
     const path = 'trainers';
     try {
-      const q = query(collection(db, path), orderBy('full_name'));
+      const q = query(collection(db, path), orderBy('name'));
       const snapshot = await getDocs(q);
       return snapshot.docs.map(doc => ({
         id: doc.id,
@@ -277,11 +277,47 @@ export const paymentsService = {
   async add(paymentData: Omit<Payment, 'id'>): Promise<Payment> {
     const path = 'payments';
     try {
-      const docRef = await addDoc(collection(db, path), {
-        ...paymentData,
-        createdAt: new Date().toISOString()
+      const { runTransaction, increment } = await import('firebase/firestore');
+      
+      let finalPayment = { ...paymentData };
+      
+      await runTransaction(db, async (transaction) => {
+        // 1. Add the payment record
+        const paymentRef = doc(collection(db, 'payments'));
+        transaction.set(paymentRef, {
+          ...paymentData,
+          date: new Date().toISOString(),
+          createdAt: new Date().toISOString()
+        });
+
+        // 2. Update student loyalty points if student_id exists
+        if (paymentData.student_id) {
+          const studentRef = doc(db, 'students', paymentData.student_id);
+          const studentDoc = await transaction.get(studentRef);
+          
+          if (studentDoc.exists()) {
+            const student = studentDoc.data() as Student;
+            const currentPoints = student.loyalty_points || 0;
+            
+            // If they have 100 points, they've used the discount now?
+            // Actually, the user says "after reaching 100 points, they are given a discount for the next month".
+            // So if currentPoints >= 100 before this payment, we subtract 100.
+            // And then we add 10 for this renewal.
+            
+            let pointsChange = 10;
+            if (currentPoints >= 100) {
+              pointsChange = -90; // -100 + 10
+            }
+            
+            transaction.update(studentRef, {
+              loyalty_points: increment(pointsChange),
+              updatedAt: new Date().toISOString()
+            });
+          }
+        }
       });
-      return { id: docRef.id, ...paymentData } as Payment;
+      
+      return { id: 'transactional', ...finalPayment } as Payment;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, path);
       throw error;
