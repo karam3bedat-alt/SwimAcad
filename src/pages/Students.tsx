@@ -54,6 +54,14 @@ export default function Students() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    const full_name = (formData.get('full_name') as string) || '';
+
+    // Check if name already exists
+    const existingStudent = students.find(s => s.full_name.trim().toLowerCase() === full_name.trim().toLowerCase());
+    if (existingStudent) {
+      const confirmAdd = window.confirm(`تنبيه: اسم الطالب "${full_name}" مسجل مسبقاً في النظام (مستوى: ${existingStudent.level}). هل أنت متأكد من رغبتك في إضافة طالب جديد بنفس الاسم؟`);
+      if (!confirmAdd) return;
+    }
     
     const toastId = toast.loading('جاري إضافة الطالب...');
     try {
