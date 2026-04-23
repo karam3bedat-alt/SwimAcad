@@ -15,6 +15,7 @@ import Payments from './pages/Payments';
 import Reports from './pages/Reports';
 import Notifications from './pages/Notifications';
 import Settings from './pages/Settings';
+import CoachProfile from './pages/CoachProfile';
 import { PaymentPage } from './pages/PaymentPage';
 import Login from './pages/Login';
 import { Toaster } from 'react-hot-toast';
@@ -45,8 +46,9 @@ function AppContent() {
               <Route path="/login" element={!user ? <Login /> : <Navigate to="/" replace />} />
               
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/students" element={<ProtectedRoute allowedRoles={['admin']}><Students /></ProtectedRoute>} />
+              <Route path="/students" element={<ProtectedRoute allowedRoles={['admin', 'coach']}><Students /></ProtectedRoute>} />
               <Route path="/coaches" element={<ProtectedRoute allowedRoles={['admin']}><Coaches /></ProtectedRoute>} />
+              <Route path="/coaches/:id" element={<ProtectedRoute><CoachProfile /></ProtectedRoute>} />
               <Route path="/sessions" element={<ProtectedRoute allowedRoles={['admin']}><Sessions /></ProtectedRoute>} />
               <Route path="/bookings" element={<ProtectedRoute><Bookings /></ProtectedRoute>} />
               <Route path="/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />

@@ -103,6 +103,55 @@ class NotificationScheduler {
     });
   }
 
+  // Detect consecutive absences (more than 2 consecutive)
+  detectConsecutiveAbsences(students: Student[], bookings: any[]) {
+    const alerts: { student: Student; consecutiveDays: number }[] = [];
+    
+    students.forEach(student => {
+      const studentBookings = bookings
+        .filter(b => b.student_id === student.id)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // Latest first
+      
+      let consecutiveAbsences = 0;
+      for (const booking of studentBookings) {
+        if (booking.status === 'غائب') {
+          consecutiveAbsences++;
+        } else if (booking.status === 'حضر') {
+          break; // Streak broken
+        }
+      }
+      
+      if (consecutiveAbsences > 2) {
+        alerts.push({ student, consecutiveDays: consecutiveAbsences });
+      }
+    });
+    
+    return alerts;
+  }
+
+  // Generate absence notifications
+  generateAbsenceNotifications(absenceAlerts: { student: Student; consecutiveDays: number }[]): ScheduledNotification[] {
+    return absenceAlerts.map(({ student, consecutiveDays }) => {
+      const template = messageTemplates[NotificationTypes.ABSENCE_NOTICE]({
+        parentName: student.parent_name || 'ولي الأمر',
+        studentName: student.full_name,
+        amount: 0,
+        month: '',
+      });
+
+      return {
+        id: `abs_${student.id}_${Date.now()}`,
+        type: NotificationTypes.ABSENCE_NOTICE,
+        studentId: student.id,
+        phone: student.phone || student.parent_phone || '',
+        ...template,
+        createdAt: new Date().toISOString(),
+        status: 'pending',
+        amount: 0
+      };
+    });
+  }
+
   // Send WhatsApp immediately
   sendWhatsApp(notification: ScheduledNotification) {
     if (!notification.phone) {

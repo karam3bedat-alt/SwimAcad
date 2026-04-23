@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Award, Phone, Activity, Loader2, AlertCircle, Plus, Trash2, Edit2 } from 'lucide-react';
+import { Award, Phone, Activity, Loader2, AlertCircle, Plus, Trash2, Edit2, Eye, User, Calendar, Briefcase, DollarSign } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Coach } from '../types';
 import { Modal } from '../components/Modal';
 import { useToast } from '../lib/ToastContext';
@@ -27,18 +28,22 @@ export default function Coaches() {
     
     const toastId = showToast(isEdit ? 'جاري تحديث بيانات المدرب...' : 'جاري إضافة المدرب...', 'loading');
     try {
-      const trainerData = {
+      const trainerData: Partial<Coach> = {
         name: (formData.get('name') as string) || '',
         trainer_name: (formData.get('name') as string) || '',
         phone: (formData.get('phone') as string) || '',
+        email: (formData.get('email') as string) || '',
         specialty: (formData.get('specialty') as string) || '',
+        salary: Number(formData.get('salary')) || 0,
+        join_date: (formData.get('join_date') as string) || new Date().toISOString().split('T')[0],
+        bio: (formData.get('bio') as string) || '',
         status: (isEdit ? selectedCoach.status : 'نشط') as 'نشط' | 'غير نشط'
       };
 
       if (isEdit) {
         await updateTrainerMutation.mutateAsync({ id: selectedCoach.id, data: trainerData });
       } else {
-        await addTrainerMutation.mutateAsync(trainerData);
+        await addTrainerMutation.mutateAsync(trainerData as Omit<Coach, 'id'>);
       }
 
       hideToast(toastId);
@@ -119,6 +124,13 @@ export default function Coaches() {
                   {coach.status || 'نشط'}
                 </div>
                 <div className="flex items-center gap-1">
+                  <Link 
+                    to={`/coaches/${coach.id}`}
+                    className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                    title="عرض الملف الشخصي"
+                  >
+                    <Eye size={16} />
+                  </Link>
                   <button 
                     onClick={() => {
                       setSelectedCoach(coach);
@@ -144,9 +156,15 @@ export default function Coaches() {
             </div>
 
             <div className="space-y-3 mb-6">
-              <div className="flex items-center gap-3 text-sm text-slate-600">
-                <Phone size={16} className="text-slate-400" />
-                <span>{coach.phone || 'غير متوفر'}</span>
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-3 text-slate-600">
+                  <Phone size={16} className="text-slate-400" />
+                  <span>{coach.phone || 'غير متوفر'}</span>
+                </div>
+                <div className="flex items-center gap-1 bg-amber-50 text-amber-700 px-2 py-0.5 rounded-lg font-bold">
+                  <Award size={14} />
+                  <span>{coach.loyalty_points || 0} نقطة</span>
+                </div>
               </div>
               <div className="flex items-center gap-3 text-sm text-slate-600">
                 <Activity size={16} className="text-slate-400" />
@@ -182,23 +200,64 @@ export default function Coaches() {
               className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700">{t('phone')}</label>
+              <input 
+                name="phone" 
+                required 
+                defaultValue={selectedCoach?.phone || ''}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700">البريد الإلكتروني</label>
+              <input 
+                name="email" 
+                type="email"
+                defaultValue={selectedCoach?.email || ''}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700">{t('specialty')}</label>
+              <input 
+                name="specialty" 
+                placeholder="مثال: سباحة فراشة، تدريب أطفال"
+                required 
+                defaultValue={selectedCoach?.specialty || ''}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700">الراتب الشهري</label>
+              <input 
+                name="salary" 
+                type="number"
+                defaultValue={selectedCoach?.salary || ''}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">{t('phone')}</label>
+            <label className="text-sm font-bold text-slate-700">تاريخ الانضمام</label>
             <input 
-              name="phone" 
-              required 
-              defaultValue={selectedCoach?.phone || ''}
+              name="join_date" 
+              type="date"
+              defaultValue={selectedCoach?.join_date || new Date().toISOString().split('T')[0]}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">{t('specialty')}</label>
-            <input 
-              name="specialty" 
-              placeholder="مثال: سباحة فراشة، تدريب أطفال"
-              required 
-              defaultValue={selectedCoach?.specialty || ''}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500"
+            <label className="text-sm font-bold text-slate-700">نبذة تعريفية</label>
+            <textarea 
+              name="bio" 
+              rows={3}
+              defaultValue={selectedCoach?.bio || ''}
+              placeholder="اكتب نبذة قصيرة عن خبرات المدرب..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 resize-none font-['Cairo'] text-sm"
             />
           </div>
           <div className="flex justify-end gap-3 pt-4">

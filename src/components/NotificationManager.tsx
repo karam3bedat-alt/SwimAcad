@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStudents } from '../hooks/useStudents';
 import { usePayments } from '../hooks/usePayments';
+import { useBookings } from '../hooks/useBookings';
 import { useSettings } from '../hooks/useSettings';
 import { scheduler, ScheduledNotification } from '../services/schedulerService';
 import { Bell, Send, Calendar, AlertTriangle, CheckCircle, MessageCircle, Loader2 } from 'lucide-react';
@@ -9,6 +10,7 @@ import toast from 'react-hot-toast';
 export const NotificationManager: React.FC = () => {
   const { data: students, isLoading: loadingStudents } = useStudents();
   const { data: payments, isLoading: loadingPayments } = usePayments();
+  const { data: bookings } = useBookings();
   const { data: settings } = useSettings();
   
   const [currentMonth, setCurrentMonth] = useState(
@@ -16,6 +18,7 @@ export const NotificationManager: React.FC = () => {
   );
   
   const [overdueList, setOverdueList] = useState<{ student: any; daysOverdue: number; amount: number; dueDate: string }[]>([]);
+  const [absenceAlerts, setAbsenceAlerts] = useState<{ student: any; consecutiveDays: number }[]>([]);
   const [scheduledNotifications, setScheduledNotifications] = useState<ScheduledNotification[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -28,14 +31,24 @@ export const NotificationManager: React.FC = () => {
     }
   }, [students, payments, currentMonth, settings]);
 
+  // Detect consecutive absences
+  useEffect(() => {
+    if (students && bookings) {
+      const alerts = scheduler.detectConsecutiveAbsences(students, bookings);
+      setAbsenceAlerts(alerts);
+    }
+  }, [students, bookings]);
+
   // Generate notifications
   const generateNotifications = () => {
     setIsProcessing(true);
     
-    const notifications = scheduler.generatePaymentNotifications(overdueList, currentMonth);
-    setScheduledNotifications(notifications);
+    const paymentNotifs = scheduler.generatePaymentNotifications(overdueList, currentMonth);
+    const absenceNotifs = scheduler.generateAbsenceNotifications(absenceAlerts);
     
-    toast.success(`تم توليد ${notifications.length} إشعار`);
+    setScheduledNotifications([...paymentNotifs, ...absenceNotifs]);
+    
+    toast.success(`تم توليد ${paymentNotifs.length + absenceNotifs.length} إشعار`);
     setIsProcessing(false);
   };
 
@@ -121,6 +134,15 @@ export const NotificationManager: React.FC = () => {
           </p>
           <p className="text-sm text-blue-600 dark:text-blue-400">مبلغ متوقع تحصيله</p>
         </div>
+
+        <div className="bg-rose-50 dark:bg-rose-900/10 p-6 rounded-2xl border border-rose-200 dark:border-rose-800/50">
+          <div className="flex items-center gap-2 text-rose-700 dark:text-rose-400 mb-2">
+            <AlertTriangle size={20} />
+            <span className="font-bold">تنبيهات الغياب</span>
+          </div>
+          <p className="text-3xl font-bold text-rose-600 dark:text-rose-500">{absenceAlerts.length}</p>
+          <p className="text-sm text-rose-600 dark:text-rose-400">طالب غائب أكثر من مرتين متتاليتين</p>
+        </div>
         
         <div className="bg-emerald-50 dark:bg-emerald-900/10 p-6 rounded-2xl border border-emerald-200 dark:border-emerald-800/50">
           <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 mb-2">
@@ -180,7 +202,7 @@ export const NotificationManager: React.FC = () => {
                     </td>
                     <td className="px-6 py-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                        notification.type === 'payment_overdue' 
+                        notification.type === 'payment_overdue' || notification.type === 'absence_notice'
                           ? 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400' 
                           : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
                       }`}>

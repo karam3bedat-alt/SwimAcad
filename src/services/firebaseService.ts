@@ -7,10 +7,15 @@ import {
   deleteDoc, 
   doc,
   query,
-  orderBy 
+  orderBy,
+  runTransaction,
+  increment,
+  serverTimestamp,
+  where,
+  getDoc
 } from 'firebase/firestore';
 
-import { Student, Coach, Session, Booking, Payment, AppSettings } from '../types';
+import { Student, Coach, Session, Booking, Payment, AppSettings, CoachAttendance, StudentEvaluation, StudentMedia } from '../types';
 
 enum OperationType {
   CREATE = 'create',
@@ -97,16 +102,19 @@ export const studentsService = {
   },
 
   // تحديث طالب
-  async update(id: string, data: Partial<Student>): Promise<void> {
+  async update(id: string, data: any): Promise<void> {
     const path = `students/${id}`;
     try {
       const docRef = doc(db, 'students', id);
-      // Clean up undefined values
-      const cleanData = JSON.parse(JSON.stringify(data));
-      await updateDoc(docRef, {
-        ...cleanData,
-        updatedAt: new Date().toISOString()
-      });
+      const updateData: any = { ...data };
+      
+      // If data is not using FieldValue, we can clean it, but usually we should just pass it
+      // if it's a partial update.
+      if (!updateData.updatedAt) {
+        updateData.updatedAt = new Date().toISOString();
+      }
+
+      await updateDoc(docRef, updateData);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
     }
@@ -141,6 +149,19 @@ export const trainersService = {
     }
   },
   
+  async getById(id: string): Promise<Coach | null> {
+    const path = `trainers/${id}`;
+    try {
+      const docRef = doc(db, 'trainers', id);
+      const snapshot = await getDoc(docRef);
+      if (!snapshot.exists()) return null;
+      return { id: snapshot.id, ...snapshot.data() } as Coach;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.GET, path);
+      return null;
+    }
+  },
+
   async add(trainerData: Omit<Coach, 'id'>): Promise<Coach> {
     const path = 'trainers';
     try {
@@ -173,6 +194,18 @@ export const trainersService = {
       await deleteDoc(docRef);
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, path);
+    }
+  },
+
+  async awardLoyaltyPoints(coachId: string, points: number): Promise<void> {
+    const docRef = doc(db, 'trainers', coachId);
+    try {
+      await updateDoc(docRef, {
+        loyalty_points: increment(points),
+        updatedAt: new Date().toISOString()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `trainers/${coachId}/loyalty_points`);
     }
   }
 };
@@ -335,6 +368,88 @@ export const paymentsService = {
   }
 };
 
+// خدمة حضور المدربين
+export const coachAttendanceService = {
+  async getAll(coachId?: string): Promise<CoachAttendance[]> {
+    const path = 'coach_attendance';
+    try {
+      let q;
+      if (coachId) {
+        q = query(collection(db, path), where('coach_id', '==', coachId), orderBy('date', 'desc'));
+      } else {
+        q = query(collection(db, path), orderBy('date', 'desc'));
+      }
+      
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data() as any
+      } as CoachAttendance));
+    } catch (error: any) {
+      if (error?.code === 'permission-denied') {
+        console.warn('Firestore Permission Denied (Handled): ', path);
+        return [];
+      }
+      handleFirestoreError(error, OperationType.LIST, path);
+      return [];
+    }
+  },
+
+  async checkIn(coachId: string, coachName: string): Promise<CoachAttendance> {
+    const path = 'coach_attendance';
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const checkInTime = new Date().toISOString();
+      
+      const attendanceData: Omit<CoachAttendance, 'id'> = {
+        coach_id: coachId,
+        coach_name: coachName,
+        date: today,
+        check_in: checkInTime,
+        status: 'حاضر'
+      };
+
+      const docRef = await addDoc(collection(db, path), attendanceData);
+      return { id: docRef.id, ...attendanceData };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, path);
+      throw error;
+    }
+  },
+
+  async checkOut(id: string, coachId: string): Promise<void> {
+    const path = `coach_attendance/${id}`;
+    try {
+      const { runTransaction, increment } = await import('firebase/firestore');
+      const docRef = doc(db, 'coach_attendance', id);
+      const coachRef = doc(db, 'trainers', coachId);
+      
+      await runTransaction(db, async (transaction) => {
+        const attendanceDoc = await transaction.get(docRef);
+        if (!attendanceDoc.exists()) throw new Error('سجل الحضور غير موجود');
+        
+        const data = attendanceDoc.data() as CoachAttendance;
+        const checkOutTime = new Date().toISOString();
+        const duration = Math.round((new Date(checkOutTime).getTime() - new Date(data.check_in).getTime()) / (1000 * 60));
+        
+        transaction.update(docRef, {
+          check_out: checkOutTime,
+          duration_minutes: duration
+        });
+
+        // Award loyalty points to coach (e.g., 10 points per session)
+        transaction.update(coachRef, {
+          loyalty_points: increment(10),
+          updatedAt: new Date().toISOString()
+        });
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, path);
+      throw error;
+    }
+  }
+};
+
 // خدمة الإعدادات
 export const settingsService = {
   async getSettings(): Promise<AppSettings | null> {
@@ -359,6 +474,84 @@ export const settingsService = {
       await setDoc(docRef, data, { merge: true });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
+    }
+  }
+};
+
+export const studentMediaService = {
+  async getAll(studentId: string): Promise<StudentMedia[]> {
+    try {
+      const q = query(
+        collection(db, 'student_media'),
+        where('student_id', '==', studentId),
+        orderBy('date', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as StudentMedia[];
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, `student_media/${studentId}`);
+      return [];
+    }
+  },
+  async add(data: Omit<StudentMedia, 'id'>): Promise<string> {
+    try {
+      const docRef = await addDoc(collection(db, 'student_media'), data);
+      
+      // Award 5 loyalty points for coach
+      if (data.coach_id) {
+        await trainersService.awardLoyaltyPoints(data.coach_id, 5);
+      }
+
+      // Award 5 loyalty points for student
+      if (data.student_id) {
+        await studentsService.update(data.student_id, {
+          loyalty_points: increment(5)
+        });
+      }
+      
+      return docRef.id;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'student_media');
+      throw error;
+    }
+  }
+};
+
+export const studentEvaluationsService = {
+  async getAll(studentId: string): Promise<StudentEvaluation[]> {
+    try {
+      const q = query(
+        collection(db, 'student_evaluations'),
+        where('student_id', '==', studentId),
+        orderBy('date', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as StudentEvaluation[];
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, `student_evaluations/${studentId}`);
+      return [];
+    }
+  },
+  async add(data: Omit<StudentEvaluation, 'id'>): Promise<string> {
+    try {
+      const docRef = await addDoc(collection(db, 'student_evaluations'), data);
+      
+      // Award 10 loyalty points for coach for detailed evaluation
+      if (data.coach_id) {
+        await trainersService.awardLoyaltyPoints(data.coach_id, 10);
+      }
+
+      // Award 10 loyalty points for student
+      if (data.student_id) {
+        await studentsService.update(data.student_id, {
+          loyalty_points: increment(10)
+        });
+      }
+      
+      return docRef.id;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'student_evaluations');
+      throw error;
     }
   }
 };

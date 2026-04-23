@@ -13,10 +13,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Admin check - specifically allows the primary admin email even if not verified yet
+    // because they are the system owner.
     function isAdmin() {
-      // Primary admin email bypass for setup
       let isPrimaryAdmin = request.auth.token.email == "fosa.academyy@gmail.com";
-      // Document-based admin check
       let hasAdminDoc = exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
                         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
       return isSignedIn() && (isPrimaryAdmin || hasAdminDoc);
@@ -32,10 +32,15 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
     // ===============================================================
     // Collections
     // ===============================================================
 
+    // Users collection
     match /users/{userId} {
       allow read: if isSignedIn() && (isOwner(userId) || isAdmin());
       allow create: if isSignedIn() && (isOwner(userId) || isAdmin());
@@ -43,50 +48,70 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Students collection
     match /students/{studentId} {
+      function isValidStudent(data) {
+        return data.full_name is string && data.full_name.size() > 0 && data.full_name.size() < 200;
+      }
       allow read: if isSignedIn();
-      allow create, update: if isAdmin() || isCoach();
+      allow create: if (isAdmin() || isCoach()) && isValidStudent(request.resource.data);
+      allow update: if (isAdmin() || isCoach()) && isValidStudent(request.resource.data);
       allow delete: if isAdmin();
     }
 
+    // Trainers collection
     match /trainers/{trainerId} {
       allow read: if isSignedIn();
       allow write: if isAdmin() || isOwner(trainerId);
     }
 
+    // Sessions collection
     match /sessions/{sessionId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
+    // Bookings collection
     match /bookings/{bookingId} {
       allow read: if isSignedIn();
       allow write: if isAdmin() || isCoach();
     }
 
+    // Payments collection
     match /payments/{paymentId} {
       allow read: if isSignedIn();
       allow create: if isAdmin() || isCoach();
       allow delete: if isAdmin();
     }
 
+    // Coach Attendance
     match /coach_attendance/{attendanceId} {
-      allow read, list: if isAdmin() || (isSignedIn() && resource.data.coach_id == request.auth.uid);
+      allow read: if isAdmin() || (isSignedIn() && resource.data.coach_id == request.auth.uid);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.coach_id == request.auth.uid);
       allow create: if isSignedIn() && (isAdmin() || request.resource.data.coach_id == request.auth.uid);
       allow update: if isSignedIn() && (isAdmin() || resource.data.coach_id == request.auth.uid);
       allow delete: if isAdmin();
     }
 
+    // Student Evaluations
     match /student_evaluations/{evalId} {
-      allow read, list: if isSignedIn();
-      allow write: if isAdmin() || isCoach();
+      allow read: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isAdmin() || isCoach();
+      allow update: if isAdmin() || isCoach();
+      allow delete: if isAdmin();
     }
 
+    // Student Media
     match /student_media/{mediaId} {
-      allow read, list: if isSignedIn();
-      allow write: if isAdmin() || isCoach();
+      allow read: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isAdmin() || isCoach();
+      allow update: if isAdmin() || isCoach();
+      allow delete: if isAdmin();
     }
 
+    // Global Settings
     match /settings/{docId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();

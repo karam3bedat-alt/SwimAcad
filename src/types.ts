@@ -12,6 +12,34 @@ export interface Student {
   registration_date: string;
   loyalty_points?: number;
   birth_date?: string;
+  assigned_coach_id?: string;
+  status?: 'نشط' | 'غير نشط';
+}
+
+export interface StudentEvaluation {
+  id: string;
+  student_id: string;
+  coach_id: string;
+  coach_name: string;
+  date: string;
+  skills: {
+    swimming: number;
+    stamina: number;
+    technique: number;
+    behavior: number;
+  };
+  total_score: number;
+  comments?: string;
+}
+
+export interface StudentMedia {
+  id: string;
+  student_id: string;
+  coach_id: string;
+  url: string;
+  type: 'image' | 'video';
+  description?: string;
+  date: string;
 }
 
 export interface Coach {
@@ -19,8 +47,25 @@ export interface Coach {
   name: string;
   trainer_name?: string;
   phone: string;
+  email?: string;
   specialty: string;
   status: 'نشط' | 'غير نشط';
+  loyalty_points?: number;
+  bio?: string;
+  join_date?: string;
+  salary?: number;
+  photo_url?: string;
+}
+
+export interface CoachAttendance {
+  id: string;
+  coach_id: string;
+  coach_name: string;
+  date: string; // ISO date
+  check_in: string; // ISO timestamp
+  check_out?: string; // ISO timestamp
+  duration_minutes?: number;
+  status: 'حاضر' | 'متأخر' | 'مبكر';
 }
 
 export interface Session {

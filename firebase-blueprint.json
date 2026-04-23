@@ -23,9 +23,45 @@
         "age": { "type": "number" },
         "level": { "type": "string" },
         "medical_notes": { "type": "string" },
-        "registration_date": { "type": "string" }
+        "registration_date": { "type": "string" },
+        "loyalty_points": { "type": "number" },
+        "assigned_coach_id": { "type": "string" }
       },
       "required": ["full_name", "phone"]
+    },
+    "StudentEvaluation": {
+      "title": "StudentEvaluation",
+      "description": "Coach assessment of student",
+      "type": "object",
+      "properties": {
+        "student_id": { "type": "string" },
+        "coach_id": { "type": "string" },
+        "coach_name": { "type": "string" },
+        "date": { "type": "string" },
+        "skills": {
+          "type": "object",
+          "properties": {
+            "swimming": { "type": "number" },
+            "stamina": { "type": "number" },
+            "technique": { "type": "number" },
+            "behavior": { "type": "number" }
+          }
+        },
+        "comments": { "type": "string" }
+      }
+    },
+    "StudentMedia": {
+      "title": "StudentMedia",
+      "description": "Photos and videos for students",
+      "type": "object",
+      "properties": {
+        "student_id": { "type": "string" },
+        "coach_id": { "type": "string" },
+        "url": { "type": "string" },
+        "type": { "type": "string", "enum": ["image", "video"] },
+        "description": { "type": "string" },
+        "date": { "type": "string" }
+      }
     },
     "Coach": {
       "title": "Coach",
@@ -35,9 +71,25 @@
         "full_name": { "type": "string" },
         "specialization": { "type": "string" },
         "phone": { "type": "string" },
-        "email": { "type": "string" }
+        "email": { "type": "string" },
+        "loyalty_points": { "type": "number" }
       },
       "required": ["full_name"]
+    },
+    "CoachAttendance": {
+      "title": "CoachAttendance",
+      "description": "Coach check-in/out records",
+      "type": "object",
+      "properties": {
+        "coach_id": { "type": "string" },
+        "coach_name": { "type": "string" },
+        "date": { "type": "string" },
+        "check_in": { "type": "string" },
+        "check_out": { "type": "string" },
+        "duration_minutes": { "type": "number" },
+        "status": { "type": "string" }
+      },
+      "required": ["coach_id", "date", "check_in"]
     },
     "Session": {
       "title": "Session",
@@ -121,6 +173,18 @@
     "/payments/{id}": {
       "schema": "Payment",
       "description": "Payment records"
+    },
+    "/student_evaluations/{id}": {
+      "schema": "StudentEvaluation",
+      "description": "Student evaluation records"
+    },
+    "/student_media/{id}": {
+      "schema": "StudentMedia",
+      "description": "Student media records"
+    },
+    "/coach_attendance/{id}": {
+      "schema": "CoachAttendance",
+      "description": "Coach attendance records"
     },
     "/settings/app_config": {
       "schema": "AcademyConfig",

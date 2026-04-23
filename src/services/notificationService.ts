@@ -7,6 +7,7 @@ export const NotificationTypes = {
   PAYMENT_CONFIRMED: 'payment_confirmed', // Payment confirmed
   SESSION_REMINDER: 'session_reminder',   // Session reminder
   WELCOME: 'welcome',                    // Welcome
+  ABSENCE_NOTICE: 'absence_notice',       // Absence notice
   CUSTOM: 'custom'                       // Custom
 } as const;
 
@@ -94,6 +95,17 @@ export const messageTemplates: Record<NotificationType, (data: TemplateData) => 
       `تم تسجيل ${data.studentName} بنجاح في Sharks Olympic Academy.\n\n` +
       `نتمنى لكم تجربة ممتعة!`,
     urgency: 'normal',
+    sendBeforeDays: null
+  }),
+
+  [NotificationTypes.ABSENCE_NOTICE]: (data) => ({
+    subject: 'تنبيه غياب متكرر',
+    message: `مرحباً ${data.parentName} 👋\n\n` +
+      `نلفت انتباهكم إلى غياب ${data.studentName} عن الحصص لعدة مرات متتالية.\n\n` +
+      `نود الاطمئنان عليه والتأكد من استمراريته في التدريبات.\n\n` +
+      `يرجى التواصل معنا في حال وجود أي استفسار.\n\n` +
+      `Sharks Olympic Academy 🏊‍♂️`,
+    urgency: 'high',
     sendBeforeDays: null
   }),
 

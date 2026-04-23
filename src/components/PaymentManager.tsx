@@ -509,76 +509,132 @@ const StatCard = ({ icon: Icon, label, value, color }: { icon: any, label: strin
 };
 
 const OverviewTab = ({ students, onSend, onConfirm }: { students: any[], onSend: any, onConfirm: any }) => (
-  <div className="overflow-x-auto">
-    <table className="w-full text-right">
-      <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
-        <tr>
-          <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">الطالب</th>
-          <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">المستوى</th>
-          <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">المبلغ</th>
-          <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">النقاط</th>
-          <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">الحالة</th>
-          <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">أيام التأخير</th>
-          <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">الإجراءات</th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-        {students.map(student => (
-          <tr key={student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
-            <td className="px-6 py-4">
-              <p className="font-bold text-slate-900 dark:text-slate-100">{student.full_name}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">{student.phone || student.parent_phone}</p>
-            </td>
-            <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{student.level}</td>
-            <td className="px-6 py-4 font-bold text-slate-900 dark:text-slate-100">
-              {formatAmount(student.amount)}
-              {(student.loyalty_points || 0) >= 100 && (
-                <span className="block text-[10px] text-emerald-600 font-bold">تم تطبيق خصم الولاء ✨</span>
-              )}
-            </td>
-            <td className="px-6 py-4">
-              <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-lg text-xs font-bold">
-                {student.loyalty_points || 0} نقطة
-              </span>
-            </td>
-            <td className="px-6 py-4">
-              <StatusBadge status={student.status} daysOverdue={student.daysOverdue} />
-            </td>
-            <td className="px-6 py-4">
-              {student.daysOverdue > 0 ? (
-                <span className="text-rose-600 dark:text-rose-400 font-bold">{student.daysOverdue} يوم</span>
-              ) : (
-                <span className="text-slate-400 dark:text-slate-600">-</span>
-              )}
-            </td>
-            <td className="px-6 py-4">
-              <div className="flex gap-2">
-                {student.status === 'pending' ? (
-                  <>
-                    <button
-                      onClick={() => onSend(student, student.daysOverdue > 5 ? 'overdue' : 'due')}
-                      className="bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-600 transition-colors"
-                    >
-                      طلب دفع
-                    </button>
-                    <button
-                      onClick={() => onConfirm(student)}
-                      className="bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-600 transition-colors"
-                    >
-                      تأكيد
-                    </button>
-                  </>
-                ) : (
-                  <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1 text-sm font-bold">
-                    <CheckCircle size={16} /> تم الدفع
-                  </span>
-                )}
-              </div>
-            </td>
+  <div className="bg-white dark:bg-slate-900 overflow-hidden">
+    {/* Table View - Hidden on Mobile */}
+    <div className="hidden lg:block overflow-x-auto">
+      <table className="w-full text-right">
+        <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+          <tr>
+            <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">الطالب</th>
+            <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">المستوى</th>
+            <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">المبلغ</th>
+            <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">النقاط</th>
+            <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">الحالة</th>
+            <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">أيام التأخير</th>
+            <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">الإجراءات</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+          {students.map(student => (
+            <tr key={student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+              <td className="px-6 py-4">
+                <p className="font-bold text-slate-900 dark:text-slate-100">{student.full_name}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{student.phone || student.parent_phone}</p>
+              </td>
+              <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{student.level}</td>
+              <td className="px-6 py-4 font-bold text-slate-900 dark:text-slate-100">
+                {formatAmount(student.amount)}
+                {(student.loyalty_points || 0) >= 100 && (
+                  <span className="block text-[10px] text-emerald-600 font-bold">تم تطبيق خصم الولاء ✨</span>
+                )}
+              </td>
+              <td className="px-6 py-4">
+                <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-lg text-xs font-bold">
+                  {student.loyalty_points || 0} نقطة
+                </span>
+              </td>
+              <td className="px-6 py-4">
+                <StatusBadge status={student.status} daysOverdue={student.daysOverdue} />
+              </td>
+              <td className="px-6 py-4">
+                {student.daysOverdue > 0 ? (
+                  <span className="text-rose-600 dark:text-rose-400 font-bold">{student.daysOverdue} يوم</span>
+                ) : (
+                  <span className="text-slate-400 dark:text-slate-600">-</span>
+                )}
+              </td>
+              <td className="px-6 py-4">
+                <div className="flex gap-2">
+                  {student.status === 'pending' ? (
+                    <>
+                      <button
+                        onClick={() => onSend(student, student.daysOverdue > 5 ? 'overdue' : 'due')}
+                        className="bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-600 transition-colors"
+                      >
+                        طلب دفع
+                      </button>
+                      <button
+                        onClick={() => onConfirm(student)}
+                        className="bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-600 transition-colors"
+                      >
+                        تأكيد
+                      </button>
+                    </>
+                  ) : (
+                    <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1 text-sm font-bold">
+                      <CheckCircle size={16} /> تم الدفع
+                    </span>
+                  )}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+
+    {/* Mobile Card View */}
+    <div className="lg:hidden divide-y divide-slate-100 dark:divide-slate-800">
+      {students.map(student => (
+        <div key={student.id} className="p-4 space-y-4">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="font-bold text-slate-900 dark:text-slate-100">{student.full_name}</p>
+              <p className="text-xs text-slate-500">{student.phone || student.parent_phone}</p>
+            </div>
+            <StatusBadge status={student.status} daysOverdue={student.daysOverdue} />
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="bg-slate-50 dark:bg-slate-800/50 p-2 rounded-xl">
+              <p className="text-[10px] text-slate-400 mb-1">المبلغ</p>
+              <p className="font-bold text-slate-900 dark:text-slate-100">{formatAmount(student.amount)}</p>
+              {(student.loyalty_points || 0) >= 100 && (
+                <span className="text-[10px] text-emerald-600 font-bold block mt-1">خصم ولاء ✨</span>
+              )}
+            </div>
+            <div className="bg-slate-50 dark:bg-slate-800/50 p-2 rounded-xl">
+              <p className="text-[10px] text-slate-400 mb-1">النقاط</p>
+              <p className="font-bold text-amber-600">{student.loyalty_points || 0} نقطة</p>
+            </div>
+          </div>
+
+          {student.status === 'pending' && (
+            <div className="flex gap-2 pt-2 border-t border-slate-50 dark:border-slate-800">
+              <button
+                onClick={() => onSend(student, student.daysOverdue > 5 ? 'overdue' : 'due')}
+                className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-blue-100"
+              >
+                طلب دفع
+              </button>
+              <button
+                onClick={() => onConfirm(student)}
+                className="flex-1 bg-emerald-600 text-white py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-emerald-100"
+              >
+                تأكيد الاستلام
+              </button>
+            </div>
+          )}
+          {student.status === 'confirmed' && (
+            <div className="pt-2 border-t border-slate-50 dark:border-slate-800 text-center">
+              <span className="text-emerald-600 font-bold text-sm flex items-center justify-center gap-2">
+                <CheckCircle size={18} /> تم استلام الدفعة
+              </span>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
   </div>
 );
 

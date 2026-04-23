@@ -37,6 +37,7 @@ export function Sidebar() {
 
   const menuItems = [
     { name: t('dashboard'), path: '/', icon: LayoutDashboard, roles: ['admin', 'coach'] },
+    { name: 'الملف الشخصي', path: `/coaches/${user?.uid}`, icon: UserRound, roles: ['coach'] },
     { name: t('students'), path: '/students', icon: Users, roles: ['admin', 'coach'] },
     { name: t('coaches'), path: '/coaches', icon: UserRound, roles: ['admin'] },
     { name: t('sessions'), path: '/sessions', icon: CalendarDays, roles: ['admin'] },
