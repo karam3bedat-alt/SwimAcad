@@ -235,6 +235,20 @@ export const sessionsService = {
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, path);
     }
+  },
+
+  async add(sessionData: Omit<Session, 'id'>): Promise<Session> {
+    const path = 'sessions';
+    try {
+      const docRef = await addDoc(collection(db, path), {
+        ...sessionData,
+        createdAt: new Date().toISOString()
+      });
+      return { id: docRef.id, ...sessionData } as Session;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, path);
+      throw error;
+    }
   }
 };
 
@@ -312,47 +326,65 @@ export const paymentsService = {
     try {
       const { runTransaction, increment } = await import('firebase/firestore');
       
-      let finalPayment = { ...paymentData };
+      let createdPayment: Payment | null = null;
       
       await runTransaction(db, async (transaction) => {
-        // 1. Add the payment record
-        const paymentRef = doc(collection(db, 'payments'));
-        transaction.set(paymentRef, {
-          ...paymentData,
-          date: new Date().toISOString(),
-          createdAt: new Date().toISOString()
-        });
-
-        // 2. Update student loyalty points if student_id exists
+        // 1. PERFORM ALL READS FIRST
+        let studentDoc = null;
+        let studentRef = null;
         if (paymentData.student_id) {
-          const studentRef = doc(db, 'students', paymentData.student_id);
-          const studentDoc = await transaction.get(studentRef);
-          
-          if (studentDoc.exists()) {
-            const student = studentDoc.data() as Student;
-            const currentPoints = student.loyalty_points || 0;
-            
-            // If they have 100 points, they've used the discount now?
-            // Actually, the user says "after reaching 100 points, they are given a discount for the next month".
-            // So if currentPoints >= 100 before this payment, we subtract 100.
-            // And then we add 10 for this renewal.
-            
-            let pointsChange = 10;
-            if (currentPoints >= 100) {
-              pointsChange = -90; // -100 + 10
-            }
-            
-            transaction.update(studentRef, {
-              loyalty_points: increment(pointsChange),
-              updatedAt: new Date().toISOString()
-            });
-          }
+          studentRef = doc(db, 'students', paymentData.student_id);
+          studentDoc = await transaction.get(studentRef);
         }
+
+        // 2. PERFORM ALL WRITES SECOND
+        const paymentRef = doc(collection(db, 'payments'));
+        const date = new Date().toISOString();
+        const paymentRecord = {
+          ...paymentData,
+          date,
+          createdAt: date
+        };
+        
+        transaction.set(paymentRef, paymentRecord);
+
+        // Update loyalty points if student exists
+        if (studentDoc?.exists()) {
+          const student = studentDoc.data() as Student;
+          const currentPoints = student.loyalty_points || 0;
+          
+          // Rule: 10 points per payment, use 100 for discount
+          let pointsChange = 10;
+          if (currentPoints >= 100) {
+            pointsChange = -90; // -100 (used) + 10 (earned)
+          }
+          
+          transaction.update(studentRef!, {
+            loyalty_points: increment(pointsChange),
+            updatedAt: new Date().toISOString()
+          });
+        }
+        
+        createdPayment = { id: paymentRef.id, ...paymentRecord } as Payment;
       });
       
-      return { id: 'transactional', ...finalPayment } as Payment;
+      return createdPayment!;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, path);
+      throw error;
+    }
+  },
+
+  async update(id: string, data: Partial<Payment>): Promise<void> {
+    const path = `payments/${id}`;
+    try {
+      const docRef = doc(db, 'payments', id);
+      await updateDoc(docRef, {
+        ...data,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, path);
       throw error;
     }
   },

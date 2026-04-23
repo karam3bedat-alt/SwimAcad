@@ -19,3 +19,14 @@ export const useDeleteSession = () => {
     }
   });
 };
+
+export const useAddSession = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (sessionData: Omit<Session, 'id'>) => sessionsService.add(sessionData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+    }
+  });
+};

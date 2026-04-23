@@ -15,43 +15,40 @@ export default function Settings() {
   const [newCourseName, setNewCourseName] = React.useState('');
   const [newCoursePrice, setNewCoursePrice] = React.useState('');
   const [customCourses, setCustomCourses] = React.useState<string[]>([]);
+  const [coursePricesDraft, setCoursePricesDraft] = React.useState<Record<string, number>>({});
 
   React.useEffect(() => {
     if (settings?.payment_config?.coursePrices) {
+      setCoursePricesDraft(settings.payment_config.coursePrices);
       const defaultKeys = Object.keys(DEFAULT_COURSE_PRICES);
       const customKeys = Object.keys(settings.payment_config.coursePrices).filter(k => !defaultKeys.includes(k));
       setCustomCourses(customKeys);
+    } else {
+      setCoursePricesDraft(DEFAULT_COURSE_PRICES);
     }
   }, [settings]);
 
   const handleAddCourse = () => {
     if (newCourseName && newCoursePrice) {
+      const price = Number(newCoursePrice);
       setCustomCourses(prev => [...prev, newCourseName]);
+      setCoursePricesDraft(prev => ({ ...prev, [newCourseName]: price }));
       setNewCourseName('');
       setNewCoursePrice('');
       setShowAddCourse(false);
     }
   };
 
+  const handlePriceChange = (course: string, price: number) => {
+    setCoursePricesDraft(prev => ({ ...prev, [course]: price }));
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     
-    const coursePrices: Record<string, number> = {};
-    // Default courses
-    Object.keys(DEFAULT_COURSE_PRICES).forEach(course => {
-      const price = formData.get(`price_${course}`);
-      if (price) {
-        coursePrices[course] = Number(price);
-      }
-    });
-    // Custom courses
-    customCourses.forEach(course => {
-      const price = formData.get(`price_${course}`);
-      if (price) {
-        coursePrices[course] = Number(price);
-      }
-    });
+    // Use the draft state which contains all current values
+    const finalCoursePrices = { ...coursePricesDraft };
 
     const updatedSettings: Partial<AppSettings> = {
       payment_config: {
@@ -62,7 +59,7 @@ export default function Settings() {
         bankName: formData.get('bankName') as string,
         academyName: formData.get('academyName') as string,
         academyPhone: formData.get('academyPhone') as string || (settings?.payment_config?.academyPhone || ''),
-        coursePrices
+        coursePrices: finalCoursePrices
       },
       last_updated: new Date().toISOString()
     };
@@ -169,7 +166,8 @@ export default function Settings() {
                   <input 
                     name={`price_${course}`}
                     type="number"
-                    defaultValue={currentPrices[course as keyof typeof DEFAULT_COURSE_PRICES] || defaultPrice}
+                    value={coursePricesDraft[course] !== undefined ? coursePricesDraft[course] : ''}
+                    onChange={(e) => handlePriceChange(course, e.target.value === '' ? 0 : Number(e.target.value))}
                     className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-4 pr-10 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₪</span>
@@ -181,7 +179,14 @@ export default function Settings() {
                 <label className="text-sm font-bold text-blue-700 dark:text-blue-400 block mb-1">{course}</label>
                 <button 
                   type="button"
-                  onClick={() => setCustomCourses(prev => prev.filter(c => c !== course))}
+                  onClick={() => {
+                    setCustomCourses(prev => prev.filter(c => c !== course));
+                    setCoursePricesDraft(prev => {
+                      const next = { ...prev };
+                      delete next[course];
+                      return next;
+                    });
+                  }}
                   className="absolute left-2 top-2 p-1 text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-rose-50 rounded"
                 >
                   <Trash2 size={12} />
@@ -190,7 +195,8 @@ export default function Settings() {
                   <input 
                     name={`price_${course}`}
                     type="number"
-                    defaultValue={currentPrices[course] || 0}
+                    value={coursePricesDraft[course] !== undefined ? coursePricesDraft[course] : ''}
+                    onChange={(e) => handlePriceChange(course, e.target.value === '' ? 0 : Number(e.target.value))}
                     className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-4 pr-10 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₪</span>

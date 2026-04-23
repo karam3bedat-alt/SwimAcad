@@ -30,3 +30,15 @@ export const useDeletePayment = () => {
     }
   });
 };
+
+export const useUpdatePayment = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<Payment> }) => 
+      paymentsService.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+    }
+  });
+};

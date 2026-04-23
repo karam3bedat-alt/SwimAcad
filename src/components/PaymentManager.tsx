@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { useStudents } from '../hooks/useStudents';
-import { usePayments, useAddPayment } from '../hooks/usePayments';
+import { useStudents, useUpdateStudent } from '../hooks/useStudents';
+import { usePayments, useAddPayment, useDeletePayment, useUpdatePayment } from '../hooks/usePayments';
 import { useSettings, useUpdateSettings } from '../hooks/useSettings';
 import { generatePaymentMessage, calculateMonthlyFee, formatAmount, PAYMENT_CONFIG, PaymentConfig } from '../services/paymentService';
 import { autoNotifier } from '../services/autoNotificationService';
@@ -20,7 +20,11 @@ import {
   Loader2,
   Settings,
   X,
-  Save
+  Save,
+  Edit2,
+  Trash2,
+  History,
+  Search
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { cn } from '../lib/utils';
@@ -30,17 +34,24 @@ import { useAuth } from '../AuthContext';
 export const PaymentManager: React.FC = () => {
   const { isAdmin } = useAuth();
   const { data: students, isLoading: studentsLoading } = useStudents();
+  const { mutate: updateStudent } = useUpdateStudent();
   const { data: payments, isLoading: paymentsLoading } = usePayments();
   const { mutate: addPayment } = useAddPayment();
+  const { mutate: updatePayment } = useUpdatePayment();
+  const { mutate: deletePayment } = useDeletePayment();
   const { data: appSettings, isLoading: settingsLoading } = useSettings();
   const { mutate: updateSettings } = useUpdateSettings();
   
   const [selectedMonth, setSelectedMonth] = useState(
     new Date().toLocaleString('ar-EG', { month: 'long', year: 'numeric' })
   );
-  const [activeTab, setActiveTab] = useState<'overview' | 'pending' | 'paid' | 'auto'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'pending' | 'paid' | 'history' | 'auto'>('overview');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<any>(null);
+  const [confirmingPayment, setConfirmingPayment] = useState<any>(null);
+  const [isNewPaymentOpen, setIsNewPaymentOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Local settings state for the form
   const [tempSettings, setTempSettings] = useState(PAYMENT_CONFIG);
@@ -102,9 +113,9 @@ export const PaymentManager: React.FC = () => {
       
       let baseAmount = student.custom_fee || calculateMonthlyFee(student.course_type || student.level, currentConfig.coursePrices);
       
-      // Loyalty discount: If scholar has >= 100 points, they get a discount (e.g., 50 NIS)
+      // Loyalty discount: If scholar has >= 100 points, they get a discount (e.g., 100 NIS)
       const hasLoyaltyDiscount = (student.loyalty_points || 0) >= 100;
-      const amount = hasLoyaltyDiscount ? Math.max(0, baseAmount - 50) : baseAmount;
+      const amount = hasLoyaltyDiscount ? Math.max(0, baseAmount - 100) : baseAmount;
 
       const dueDate = new Date();
       dueDate.setDate(1);
@@ -133,32 +144,7 @@ export const PaymentManager: React.FC = () => {
 
   // Confirm payment receipt
   const confirmPayment = async (student: any) => {
-    try {
-      await addPayment({
-        student_id: student.id,
-        student_name: student.full_name,
-        amount: student.amount,
-        date: new Date().toISOString(),
-        method: 'نقدي',
-        month: selectedMonth
-      });
-
-      const receiptNum = `REC-${Date.now()}-${student.id}`;
-    const message = generatePaymentMessage(
-      { ...student, receiptNumber: receiptNum }, 
-      student.amount, 
-      selectedMonth, 
-      'confirmed',
-      currentConfig
-    );
-    
-    const link = createWhatsAppLink(student.phone || student.parent_phone || '', message);
-    window.open(link, '_blank');
-    
-    toast.success(`✅ تم تأكيد استلام دفع ${student.full_name}`);
-    } catch (error) {
-      toast.error('فشل تأكيد الدفعة');
-    }
+    setConfirmingPayment(student);
   };
 
   // Send bulk requests
@@ -317,6 +303,7 @@ export const PaymentManager: React.FC = () => {
           { id: 'overview', label: 'نظرة عامة', icon: Calendar },
           { id: 'pending', label: 'المعلقون', icon: Clock },
           { id: 'paid', label: 'تم الدفع', icon: CheckCircle },
+          { id: 'history', label: 'سجل الدفعات', icon: History },
           { id: 'auto', label: 'تذكيرات تلقائية', icon: Bell },
         ].map(tab => (
           <button
@@ -337,6 +324,14 @@ export const PaymentManager: React.FC = () => {
 
       {/* Actions Bar */}
       <div className="flex flex-wrap gap-3">
+        <button
+          onClick={() => setIsNewPaymentOpen(true)}
+          className="bg-purple-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-purple-700 shadow-lg shadow-purple-100 dark:shadow-none transition-all"
+        >
+          <DollarSign size={20} />
+          دفعة جديدة بمبلغ مخصص
+        </button>
+
         <button
           onClick={sendBulkRequest}
           disabled={isProcessing || stats.pending === 0}
@@ -374,10 +369,217 @@ export const PaymentManager: React.FC = () => {
         {activeTab === 'paid' && (
           <PaidTab students={studentsWithStatus.filter(s => s.status === 'confirmed')} />
         )}
+        {activeTab === 'history' && (
+          <HistoryTab 
+            payments={payments} 
+            onEdit={(p: any) => setEditingPayment(p)}
+            onDelete={(id: string) => {
+              if (window.confirm('هل أنت متأكد من حذف هذا السجل المالي؟')) {
+                deletePayment(id);
+                toast.success('تم حذف السجل بنجاح');
+              }
+            }}
+          />
+        )}
         {activeTab === 'auto' && (
           <AutoTab stats={autoNotifier.getStats()} />
         )}
       </div>
+
+      {/* Edit Payment Modal */}
+      <Modal
+        isOpen={!!editingPayment}
+        onClose={() => setEditingPayment(null)}
+        title="تعديل سجل مالي"
+      >
+        {editingPayment && (
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            updatePayment({ 
+              id: editingPayment.id, 
+              data: { 
+                amount: Number(formData.get('amount')),
+                month: formData.get('month') as string,
+                notes: formData.get('notes') as string
+              }
+            });
+            setEditingPayment(null);
+            toast.success('تم تحديث السجل المالي');
+          }} className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">اسم الطالب</label>
+              <input type="text" disabled value={editingPayment.student_name} className="w-full bg-slate-100 dark:bg-slate-800 rounded-xl px-4 py-2 opacity-60" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">المبلغ (₪)</label>
+              <input name="amount" type="number" defaultValue={editingPayment.amount} required className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">الشهر</label>
+              <input name="month" type="text" defaultValue={editingPayment.month} required className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">ملاحظات</label>
+              <textarea name="notes" defaultValue={editingPayment.notes} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 h-24" />
+            </div>
+            <div className="flex gap-3 pt-4">
+              <button type="submit" className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700">
+                <Save size={20} /> حفظ التعديلات
+              </button>
+              <button type="button" onClick={() => setEditingPayment(null)} className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 py-3 rounded-xl font-bold">إلغاء</button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      {/* Confirmation Modal */}
+      <Modal
+        isOpen={!!confirmingPayment}
+        onClose={() => setConfirmingPayment(null)}
+        title="تأكيد استلام دفعة وتجديد اشتراك"
+      >
+        {confirmingPayment && (
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            const amount = Number(formData.get('amount'));
+            const method = formData.get('method') as string;
+            const courseType = formData.get('course_type') as string;
+            
+            try {
+              setIsProcessing(true);
+              await addPayment({
+                student_id: confirmingPayment.id,
+                student_name: confirmingPayment.full_name,
+                amount: amount,
+                method: method,
+                month: selectedMonth,
+                course_type: courseType,
+                date: new Date().toISOString(),
+                notes: confirmingPayment.loyalty_points >= 100 ? 'تم استخدام خصم الولاء (100 شيقل)' : ''
+              });
+
+              // Update Student course type if changed
+              if (courseType !== confirmingPayment.course_type) {
+                await updateStudent({
+                  id: confirmingPayment.id,
+                  data: { course_type: courseType }
+                });
+              }
+
+              const receiptNum = `REC-${Date.now()}-${confirmingPayment.id}`;
+              const message = generatePaymentMessage(
+                { ...confirmingPayment, receiptNumber: receiptNum, course_type: courseType }, 
+                amount, 
+                selectedMonth, 
+                'confirmed',
+                currentConfig
+              );
+              
+              const link = createWhatsAppLink(confirmingPayment.phone || confirmingPayment.parent_phone || '', message);
+              window.open(link, '_blank');
+              
+              toast.success(`✅ تم تأكيد استلام دفع ${confirmingPayment.full_name}`);
+              setConfirmingPayment(null);
+            } catch (err) {
+              toast.error('فشل تأكيد الدفعة');
+            } finally {
+              setIsProcessing(false);
+            }
+          }} className="space-y-4">
+            <div className="bg-blue-50 dark:bg-blue-900/10 p-4 rounded-xl border border-blue-100 dark:border-blue-800/30">
+              <p className="text-sm font-bold text-blue-600">تجديد اشتراك: {confirmingPayment.full_name}</p>
+              <p className="text-xs text-slate-500 mt-1">النقاط الحالية: {confirmingPayment.loyalty_points || 0}</p>
+              {confirmingPayment.loyalty_points >= 100 && (
+                <p className="text-xs text-emerald-600 font-bold mt-1">✨ مستحق لخصم الولاء (100 شيقل)</p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-bold">نوع الدورة</label>
+                <select name="course_type" defaultValue={confirmingPayment.course_type} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2">
+                  {Object.keys(currentConfig.coursePrices).map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold">المبلغ المستلم (₪)</label>
+                <input name="amount" type="number" defaultValue={confirmingPayment.amount} required className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2" />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-bold">طريقة الدفع</label>
+              <select name="method" className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2">
+                <option value="نقدي">نقدي</option>
+                <option value="تحويل بنكي">تحويل بنكي</option>
+                <option value="بطاقة ائتمان">بطاقة ائتمان</option>
+                <option value="تطبيق محفظة">تطبيق محفظة</option>
+              </select>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <button type="submit" disabled={isProcessing} className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-700 disabled:opacity-50">
+                {isProcessing ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
+                تأكيد الدفع والتجديد
+              </button>
+              <button type="button" onClick={() => setConfirmingPayment(null)} className="px-6 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 py-3 rounded-xl font-bold">إلغاء</button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      {/* New Custom Payment Modal */}
+      <Modal
+        isOpen={isNewPaymentOpen}
+        onClose={() => setIsNewPaymentOpen(false)}
+        title="تسجيل دفعة جديدة بمبلغ مخصص"
+      >
+        <div className="space-y-4">
+          <div className="relative">
+            <Search className="absolute right-3 top-3 text-slate-400" size={20} />
+            <input
+              type="text"
+              placeholder="ابحث عن الطالب بالاسم..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pr-10 pl-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="max-h-48 overflow-y-auto space-y-2 custom-scrollbar">
+            {students?.filter(s => s.full_name.includes(searchQuery)).slice(0, 5).map(s => (
+              <button
+                key={s.id}
+                onClick={() => {
+                  setConfirmingPayment({
+                    ...s,
+                    amount: 0, // Let them enter custom amount
+                    course_type: s.course_type || s.level,
+                    status: 'pending',
+                    loyalty_points: s.loyalty_points || 0
+                  });
+                  setIsNewPaymentOpen(false);
+                  setSearchQuery('');
+                }}
+                className="w-full text-right p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-all flex justify-between items-center"
+              >
+                <div>
+                  <p className="font-bold text-slate-900 dark:text-slate-100">{s.full_name}</p>
+                  <p className="text-xs text-slate-500">{s.level}</p>
+                </div>
+                <div className="bg-blue-50 dark:bg-blue-900/20 text-blue-600 px-3 py-1 rounded-lg text-xs font-bold">اختيار</div>
+              </button>
+            ))}
+            {searchQuery && students?.filter(s => s.full_name.includes(searchQuery)).length === 0 && (
+              <p className="text-center py-4 text-slate-500 text-sm">لم يتم العثور على نتائج</p>
+            )}
+          </div>
+        </div>
+      </Modal>
 
       {/* Settings Modal */}
       <Modal
@@ -737,6 +939,54 @@ const AutoTab = ({ stats }: { stats: any }) => (
           <span>يتم فتح محادثة الواتساب تلقائياً مع الرسالة المجهزة لتسهيل التواصل.</span>
         </li>
       </ul>
+    </div>
+  </div>
+);
+
+const HistoryTab = ({ payments, onEdit, onDelete }: { payments: any[], onEdit: any, onDelete: any }) => (
+  <div className="p-6">
+    <div className="flex justify-between items-center mb-6">
+      <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">سجل المدفوعات التاريخي</h3>
+      <p className="text-sm text-slate-500">إجمالي السجلات: {payments.length}</p>
+    </div>
+    
+    <div className="overflow-x-auto">
+      <table className="w-full text-right">
+        <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+          <tr>
+            <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">الطالب</th>
+            <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">المبلغ</th>
+            <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">الشهر</th>
+            <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">التاريخ</th>
+            <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">الإجراءات</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+          {payments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(payment => (
+            <tr key={payment.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+              <td className="px-6 py-4 font-bold text-slate-900 dark:text-slate-100">{payment.student_name}</td>
+              <td className="px-6 py-4 font-bold text-emerald-600">{formatAmount(payment.amount)}</td>
+              <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{payment.month}</td>
+              <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-500">
+                {new Date(payment.date).toLocaleDateString('ar-EG')}
+              </td>
+              <td className="px-6 py-4">
+                <div className="flex gap-2">
+                  <button onClick={() => onEdit(payment)} className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors">
+                    <Edit2 size={16} />
+                  </button>
+                  <button onClick={() => onDelete(payment.id)} className="p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {payments.length === 0 && (
+        <div className="text-center py-12 text-slate-500">لا يوجد سجل مدفوعات حالياً.</div>
+      )}
     </div>
   </div>
 );

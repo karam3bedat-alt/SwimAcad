@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RefreshCw, Wallet, Calendar, AlertTriangle, CheckCircle2, Award } from 'lucide-react';
+import { RefreshCw, Wallet, Calendar, AlertTriangle, CheckCircle2, Award, DollarSign, Search } from 'lucide-react';
 import { Student } from '../types';
 import { Modal } from './Modal';
 import { usePayments, useAddPayment } from '../hooks/usePayments';
@@ -23,11 +23,21 @@ export function RenewalModal({ isOpen, onClose, student }: RenewalModalProps) {
   const standardPrice = student.custom_fee || currentPrices[student.course_type as keyof typeof DEFAULT_COURSE_PRICES] || 0;
   
   const hasLoyaltyDiscount = (student.loyalty_points || 0) >= 100;
-  const discountAmount = hasLoyaltyDiscount ? 100 : 0; // Example 100 ₪ discount
-  const finalPrice = Math.max(0, standardPrice - discountAmount);
+  const discountAmount = hasLoyaltyDiscount ? 100 : 0;
+  const initialPrice = Math.max(0, standardPrice - discountAmount);
 
   const [paymentMethod, setPaymentMethod] = useState<'bit' | 'paybox' | 'transfer' | 'cash'>('cash');
+  const [courseType, setCourseType] = useState(student.course_type || '');
+  const [customAmount, setCustomAmount] = useState(initialPrice);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Update initial values if student changes or loyalty discount status changes
+  React.useEffect(() => {
+    const sPrice = student.custom_fee || currentPrices[student.course_type as keyof typeof DEFAULT_COURSE_PRICES] || 0;
+    const disc = (student.loyalty_points || 0) >= 100 ? 100 : 0;
+    setCustomAmount(Math.max(0, sPrice - disc));
+    setCourseType(student.course_type || '');
+  }, [student, currentPrices]);
 
   const handleRenew = async () => {
     setIsProcessing(true);
@@ -38,15 +48,21 @@ export function RenewalModal({ isOpen, onClose, student }: RenewalModalProps) {
       await addPaymentMutation.mutateAsync({
         student_id: student.id,
         student_name: student.full_name,
-        amount: finalPrice,
+        amount: customAmount,
         method: paymentMethod,
+        course_type: courseType,
         date: new Date().toISOString(),
         month: new Date().toLocaleString('ar-EG', { month: 'long' }),
         notes: hasLoyaltyDiscount ? 'تم تطبيق خصم نقاط الولاء' : ''
       });
 
-      // points handling is done in the backend/service already based on my previous check of paymentsService.add
-      // but let's double check that
+      // 2. Update Student course type if changed
+      if (courseType !== student.course_type) {
+        await updateStudentMutation.mutateAsync({
+          id: student.id,
+          data: { course_type: courseType }
+        });
+      }
       
       toast.success('تم تجديد الاشتراك بنجاح (+10 نقاط ولاء)', { id: toastId });
       onClose();
@@ -59,14 +75,42 @@ export function RenewalModal({ isOpen, onClose, student }: RenewalModalProps) {
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="تجديد الاشتراك" size="md">
-      <div className="space-y-6">
+      <div className="space-y-6 text-right">
         <div className="flex items-center gap-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-100 dark:border-blue-800">
           <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xl">
             {student.full_name.charAt(0)}
           </div>
-          <div>
+          <div className="text-right">
             <h4 className="font-bold text-slate-900 dark:text-slate-100">{student.full_name}</h4>
-            <p className="text-sm text-slate-500">{student.course_type}</p>
+            <p className="text-sm text-slate-500">الاشتراك الحالي: {student.course_type}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">اسم الدورة / الفئة</label>
+            <select
+              value={courseType}
+              onChange={(e) => setCourseType(e.target.value)}
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {Object.keys(currentPrices).map(type => (
+                <option key={type} value={type}>{type}</option>
+              ))}
+            </select>
+          </div>
+          
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">المبلغ المدفوع (₪)</label>
+            <div className="relative">
+              <DollarSign className="absolute left-3 top-3.5 text-slate-400" size={18} />
+              <input
+                type="number"
+                value={customAmount}
+                onChange={(e) => setCustomAmount(Number(e.target.value))}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 pl-10 outline-none focus:ring-2 focus:ring-blue-500 font-bold"
+              />
+            </div>
           </div>
         </div>
 
@@ -135,7 +179,7 @@ export function RenewalModal({ isOpen, onClose, student }: RenewalModalProps) {
         <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
           <div className="flex items-center justify-between mb-6">
             <p className="font-bold text-slate-900 dark:text-slate-100">الإجمالي المطلوب:</p>
-            <p className="text-2xl font-black text-blue-600">{finalPrice} ₪</p>
+            <p className="text-2xl font-black text-blue-600">{customAmount} ₪</p>
           </div>
           
           <button

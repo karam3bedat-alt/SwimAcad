@@ -3,9 +3,11 @@ import { Plus, Clock, Users as UsersIcon, Loader2, AlertCircle, Trash2 } from 'l
 import { Session } from '../types';
 import { Modal } from '../components/Modal';
 import { useToast } from '../lib/ToastContext';
-import { useSessions, useDeleteSession } from '../hooks/useSessions';
+import { useSessions, useDeleteSession, useAddSession } from '../hooks/useSessions';
 import { useStudents } from '../hooks/useStudents';
+import { useTrainers } from '../hooks/useTrainers';
 import { useAddBooking } from '../hooks/useBookings';
+import { useAuth } from '../AuthContext';
 
 const DAYS = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
 
@@ -14,10 +16,15 @@ export default function Sessions() {
   const { data: sessions = [], isLoading: isLoadingSessions, error: sessionsError } = useSessions();
   const { data: students = [], isLoading: isLoadingStudents } = useStudents();
   
+  const { data: trainers = [] } = useTrainers();
+  const { isAdmin } = useAuth();
+  
   const deleteSessionMutation = useDeleteSession();
+  const addSessionMutation = useAddSession();
   const addBookingMutation = useAddBooking();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
 
@@ -67,6 +74,32 @@ export default function Sessions() {
     }
   };
 
+  const handleAddSession = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const coachName = formData.get('coach_name') as string;
+    const coach = trainers.find(t => t.name === coachName);
+    
+    const toastId = showToast('جاري إضافة الحصة...', 'loading');
+    try {
+      await addSessionMutation.mutateAsync({
+        day: formData.get('day') as any,
+        start_time: formData.get('start_time') as string,
+        end_time: formData.get('end_time') as string,
+        coach_id: coach?.id || '',
+        coach_name: coachName,
+        max_capacity: Number(formData.get('max_capacity')),
+        required_level: formData.get('required_level') as string,
+      });
+      hideToast(toastId);
+      showToast('تمت إضافة الحصة بنجاح', 'success');
+      setIsAddModalOpen(false);
+    } catch (err: any) {
+      hideToast(toastId);
+      showToast(err.message || 'فشل إضافة الحصة', 'error');
+    }
+  };
+
   const isLoading = isLoadingSessions || isLoadingStudents;
 
   if (isLoading && (!sessions || sessions.length === 0)) {
@@ -85,6 +118,15 @@ export default function Sessions() {
           <h2 className="text-2xl font-bold text-slate-900">جدولة الحصص</h2>
           <p className="text-slate-500">تنظيم الجدول الأسبوعي وحجز الطلاب في الحصص.</p>
         </div>
+        {isAdmin() && (
+          <button 
+            onClick={() => setIsAddModalOpen(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-100"
+          >
+            <Plus size={20} />
+            إضافة حصة جديدة
+          </button>
+        )}
       </div>
 
       {sessionsError && (
@@ -145,6 +187,103 @@ export default function Sessions() {
           </div>
         ))}
       </div>
+
+      <Modal 
+        isOpen={isAddModalOpen} 
+        onClose={() => setIsAddModalOpen(false)} 
+        title="إضافة حصة جديدة"
+      >
+        <form onSubmit={handleAddSession} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700">اليوم</label>
+              <select 
+                name="day" 
+                required 
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              >
+                {DAYS.map(day => <option key={day} value={day}>{day}</option>)}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700">المستوى المطلوب</label>
+              <select 
+                name="required_level" 
+                required 
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              >
+                <option value="مبتدئ">مبتدئ</option>
+                <option value="متوسط">متوسط</option>
+                <option value="متقدم">متقدم</option>
+                <option value="فريق ناشئين">فريق ناشئين</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700">وقت البدء</label>
+              <input 
+                type="time" 
+                name="start_time" 
+                required 
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700">وقت الانتهاء</label>
+              <input 
+                type="time" 
+                name="end_time" 
+                required 
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700">المدرب</label>
+              <select 
+                name="coach_name" 
+                required 
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              >
+                <option value="">اختر المدرب</option>
+                {trainers.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700">السعة القصوى</label>
+              <input 
+                type="number" 
+                name="max_capacity" 
+                min="1" 
+                defaultValue="10"
+                required 
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <button 
+              type="button" 
+              onClick={() => setIsAddModalOpen(false)}
+              className="px-6 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-colors"
+            >
+              إلغاء
+            </button>
+            <button 
+              type="submit"
+              disabled={addSessionMutation.isPending}
+              className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 disabled:opacity-50"
+            >
+              {addSessionMutation.isPending ? <Loader2 className="animate-spin" size={20} /> : 'إضافة الحصة'}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       <Modal 
         isOpen={isModalOpen} 

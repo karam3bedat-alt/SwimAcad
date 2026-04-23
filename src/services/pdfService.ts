@@ -65,6 +65,14 @@ export const generateAttendancePDF = (bookings: any[]) => {
     headStyles: { fillColor: [59, 130, 246] }
   });
   
+  const presentCount = bookings.filter(b => b.status === 'حاضر').length;
+  const absentCount = bookings.filter(b => b.status === 'غائب').length;
+  const finalY = (doc as any).lastAutoTable.finalY + 10;
+  
+  doc.setFontSize(10);
+  doc.text(`إجمالي الحضور: ${presentCount}`, 190, finalY, { align: 'right' });
+  doc.text(`إجمالي الغياب: ${absentCount}`, 190, finalY + 7, { align: 'right' });
+  
   doc.save(`attendance-report-${new Date().toISOString().split('T')[0]}.pdf`);
 };
 
@@ -96,6 +104,70 @@ export const generatePaymentsPDF = (payments: any[]) => {
   });
   
   doc.save(`payments-report-${new Date().toISOString().split('T')[0]}.pdf`);
+};
+
+export const generateCoachAttendancePDF = (attendance: any[]) => {
+  const doc = new jsPDF();
+  
+  doc.setFontSize(20);
+  doc.text('تقرير حضور المدربين - Sharks Olympic Academy', 105, 20, { align: 'center' });
+  
+  doc.setFontSize(12);
+  doc.text(`تاريخ التقرير: ${new Date().toLocaleDateString('ar-EG')}`, 105, 30, { align: 'center' });
+  
+  const tableData = attendance.map(a => [
+    a.coach_name || '-',
+    a.date || '-',
+    a.check_in ? new Date(a.check_in).toLocaleTimeString('ar-EG') : '-',
+    a.check_out ? new Date(a.check_out).toLocaleTimeString('ar-EG') : '-',
+    a.duration_minutes ? `${a.duration_minutes} دقيقة` : '-',
+    a.status || 'حاضر'
+  ]);
+  
+  autoTable(doc, {
+    head: [['اسم المدرب', 'التاريخ', 'دخول', 'خروج', 'المدة', 'الحالة']],
+    body: tableData,
+    startY: 40,
+    theme: 'grid',
+    styles: { halign: 'right' },
+    headStyles: { fillColor: [99, 102, 241] } // Indigo
+  });
+  
+  doc.save(`coaches-attendance-${new Date().toISOString().split('T')[0]}.pdf`);
+};
+
+export const generateDetailedFinancialReport = (payments: any[], students: any[]) => {
+  const doc = new jsPDF();
+  
+  doc.setFontSize(22);
+  doc.text('التقرير المالي التفصيلي', 105, 20, { align: 'center' });
+  
+  const total = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const studentPaymentsCount = payments.length;
+  
+  doc.setFontSize(12);
+  doc.text(`إجمالي التحصيلات: ${total.toLocaleString()} ₪`, 20, 40);
+  doc.text(`عدد الدفعات المستلمة: ${studentPaymentsCount}`, 20, 50);
+  doc.text(`تاريخ التقرير: ${new Date().toLocaleDateString('ar-EG')}`, 20, 60);
+
+  const tableData = payments.map(p => [
+    p.student_name || 'غير معروف',
+    p.course_type || '-',
+    `${Number(p.amount).toLocaleString()} ₪`,
+    p.date ? new Date(p.date).toLocaleDateString('ar-EG') : '-',
+    p.method || 'نقداً'
+  ]);
+
+  autoTable(doc, {
+    head: [['اسم الطالب', 'نوع الدورة', 'المبلغ', 'التاريخ', 'طريقة الدفع']],
+    body: tableData,
+    startY: 70,
+    theme: 'striped',
+    styles: { halign: 'right' },
+    headStyles: { fillColor: [16, 185, 129] }
+  });
+
+  doc.save(`detailed-financial-report-${new Date().toISOString().split('T')[0]}.pdf`);
 };
 
 export const generateCertificatePDF = (student: any) => {

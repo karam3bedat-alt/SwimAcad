@@ -103,7 +103,8 @@ export interface Payment {
   amount: number;
   date: string;
   month?: string;
-  method: 'نقدي' | 'تحويل';
+  method: string;
+  course_type?: string;
   notes?: string;
   received_by?: string;
   loyalty_points_used?: number;
