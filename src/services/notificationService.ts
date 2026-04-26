@@ -17,6 +17,8 @@ interface TemplateData {
   parentName: string;
   studentName: string;
   amount: number;
+  remainingAmount?: number;
+  originalAmount?: number;
   month: string;
   dueDate?: string;
   daysOverdue?: number;
@@ -36,7 +38,10 @@ export const messageTemplates: Record<NotificationType, (data: TemplateData) => 
     subject: 'تذكير بالدفع',
     message: `مرحباً ${data.parentName} 👋\n\n` +
       `نود تذكيركم بدفع اشتراك ${data.studentName} للشهر الحالي (${data.month}).\n\n` +
-      `💰 المبلغ المستحق: *${data.amount} شيكل*\n` +
+      `💰 قيمة الاشتراك: *${data.originalAmount || data.amount} شيكل*\n` +
+      (data.remainingAmount && data.remainingAmount > 0 && data.remainingAmount !== (data.originalAmount || data.amount)
+        ? `⚠️ المبلغ المتبقي: *${data.remainingAmount} شيكل*\n`
+        : `💰 المبلغ المطلوب: *${data.amount} شيكل*\n`) +
       `📅 تاريخ الاستحقاق: ${data.dueDate}\n\n` +
       `للدفع السريع:\n${data.paymentLink}\n\n` +
       `شكراً لتعاونكم 🙏\n` +
@@ -49,7 +54,10 @@ export const messageTemplates: Record<NotificationType, (data: TemplateData) => 
     subject: 'تنبيه: دفعة متأخرة',
     message: `مرحباً ${data.parentName} ⚠️\n\n` +
       `نلفت انتباهكم أن دفع اشتراك ${data.studentName} للشهر ${data.month} *متأخر*.\n\n` +
-      `💰 المبلغ المستحق: *${data.amount} شيكل*\n` +
+      `💰 قيمة الاشتراك: *${data.originalAmount || data.amount} شيكل*\n` +
+      (data.remainingAmount && data.remainingAmount > 0 && data.remainingAmount !== (data.originalAmount || data.amount)
+        ? `⚠️ المبلغ المتبقي: *${data.remainingAmount} شيكل*\n`
+        : `💰 المبلغ المطلوب: *${data.amount} شيكل*\n`) +
       `⏰ أيام التأخير: ${data.daysOverdue} يوم\n\n` +
       `للدفع الفوري:\n${data.paymentLink}\n\n` +
       `للاستفسار: 052-5526570\n\n` +

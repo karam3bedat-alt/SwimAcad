@@ -126,9 +126,10 @@ class AutoNotificationService {
     
     students?.forEach(student => {
       const hasPaid = payments?.some(p => {
+        if (!p || !p.date) return false;
         const pDate = new Date(p.date);
         return p.student_id === student.id && 
-               pDate.toLocaleString('ar-EG', { month: 'long', year: 'numeric' }) === month;
+               (pDate?.toLocaleString('ar-EG', { month: 'long', year: 'numeric' }) === month || p.month === month);
       });
 
       if (!hasPaid) {

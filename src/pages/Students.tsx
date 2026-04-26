@@ -17,6 +17,7 @@ import { useAuth } from '../AuthContext';
 
 import { RenewalModal } from '../components/RenewalModal';
 import { StudentEvaluationsModal, StudentMediaModal } from '../components/StudentCoachFeatures';
+import { StudentProfileModal } from '../components/StudentProfileModal';
 
 export default function Students() {
   const { t, language } = useI18n();
@@ -36,6 +37,7 @@ export default function Students() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isRenewalModalOpen, setIsRenewalModalOpen] = useState(false);
   const [isBroadcastModalOpen, setIsBroadcastModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLevel, setFilterLevel] = useState(t('all_levels'));
@@ -324,6 +326,31 @@ export default function Students() {
             <span>{t('broadcast_messages')}</span>
           </button>
           <button 
+            onClick={() => {
+              const data = filteredStudents.map(s => ({
+                'الاسم الكامل': s.full_name,
+                'العمر': s.age,
+                'المستوى': s.level,
+                'نوع الدورة': s.course_type || '-',
+                'رقم الهاتف': s.phone || '-',
+                'اسم ولي الأمر': s.parent_name || '-',
+                'رقم ولي الأمر': s.parent_phone || s.phone || '-',
+                'تاريخ التسجيل': s.registration_date ? new Date(s.registration_date).toLocaleDateString('ar-EG') : '-',
+                'ملاحظات طبية': s.medical_notes || 'لا يوجد',
+                'نقاط الولاء': s.loyalty_points || 0,
+                'الحالة': s.status || 'نشط'
+              }));
+              import('../lib/utils').then(({ exportToExcel }) => {
+                exportToExcel(data, `قائمة_الطلاب_${new Date().toLocaleDateString('ar-EG')}`);
+              });
+            }}
+            disabled={filteredStudents.length === 0}
+            className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-emerald-200 dark:hover:bg-emerald-900/50 transition-colors"
+          >
+            <Download size={20} />
+            <span>{t('export_excel')}</span>
+          </button>
+          <button 
             onClick={() => generateStudentsPDF(filteredStudents)}
             disabled={filteredStudents.length === 0}
             className="bg-emerald-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 disabled:opacity-50"
@@ -429,13 +456,25 @@ export default function Students() {
             <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
               {filteredStudents.map((student) => (
                 <tr key={student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap">
+                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold">
+                      <div 
+                        onClick={() => {
+                          setSelectedStudent(student);
+                          setIsProfileModalOpen(true);
+                        }}
+                        className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold cursor-pointer hover:bg-blue-200 transition-colors"
+                      >
                         {student.full_name?.charAt(0)}
                       </div>
-                      <div>
-                        <p className="font-bold text-slate-900 dark:text-slate-100">{student.full_name}</p>
+                      <div 
+                        onClick={() => {
+                          setSelectedStudent(student);
+                          setIsProfileModalOpen(true);
+                        }}
+                        className="cursor-pointer group"
+                      >
+                        <p className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-blue-600 transition-colors">{student.full_name}</p>
                         <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
                           <Phone size={12} /> {student.phone || student.parent_phone}
                         </p>
@@ -488,12 +527,18 @@ export default function Students() {
           {filteredStudents.map((student) => (
             <div key={student.id} className="p-4 space-y-4 bg-white dark:bg-slate-900 transition-colors">
               <div className="flex justify-between items-start">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-lg">
+                <div 
+                  className="flex items-center gap-3 cursor-pointer group"
+                  onClick={() => {
+                    setSelectedStudent(student);
+                    setIsProfileModalOpen(true);
+                  }}
+                >
+                  <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-lg group-hover:bg-blue-200 transition-colors">
                     {student.full_name?.charAt(0)}
                   </div>
                   <div>
-                    <h4 className="font-bold text-slate-900 dark:text-slate-100">{student.full_name}</h4>
+                    <h4 className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-blue-600 transition-colors">{student.full_name}</h4>
                     <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 text-right" dir="ltr">
                       {student.phone || student.parent_phone} <Phone size={12} />
                     </p>
@@ -831,6 +876,14 @@ export default function Students() {
 
       {selectedStudent && (
         <>
+          <StudentProfileModal
+            isOpen={isProfileModalOpen}
+            onClose={() => {
+              setIsProfileModalOpen(false);
+              setSelectedStudent(null);
+            }}
+            student={selectedStudent}
+          />
           <RenewalModal
             isOpen={isRenewalModalOpen}
             onClose={() => {

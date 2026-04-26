@@ -13,6 +13,7 @@ export interface ScheduledNotification {
   createdAt: string;
   status: 'pending' | 'sent';
   amount: number;
+  originalAmount?: number;
   scheduledTime?: Date;
   sentAt?: string;
 }
@@ -22,7 +23,7 @@ class NotificationScheduler {
 
   // Calculate overdue payments
   calculateOverduePayments(students: Student[], payments: Payment[], currentMonthName: string, coursePrices?: Record<string, number>) {
-    const overdue: { student: Student; daysOverdue: number; amount: number; dueDate: string }[] = [];
+    const overdue: { student: Student; daysOverdue: number; amount: number; originalAmount?: number; dueDate: string }[] = [];
     
     // Map month name to number (0-11)
     const monthsMap: Record<string, number> = {
@@ -34,26 +35,27 @@ class NotificationScheduler {
     const currentYear = new Date().getFullYear();
 
     students?.forEach(student => {
-      // Check if there's a payment for the target month
-      const hasPaid = payments?.some(p => {
-        const pDate = new Date(p.date);
-        return p.student_id === student.id && 
-               p.month === currentMonthName;
+      // Get all payments for this student for the target month
+      const studentPayments = payments?.filter(p => {
+        return p.student_id === student.id && p.month === currentMonthName;
       });
+      
+      const totalPaid = studentPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+      const originalAmount = student.custom_fee || (coursePrices && coursePrices[student.course_type]) || this.calculateMonthlyFee(student.level);
+      const remainingAmount = Math.max(0, originalAmount - totalPaid);
 
-      if (!hasPaid) {
+      if (remainingAmount > 0) {
         const dueDate = new Date(currentYear, targetMonth, 1); // First of the month
         
         const today = new Date();
         const diffTime = today.getTime() - dueDate.getTime();
         const daysOverdue = Math.floor(diffTime / (1000 * 60 * 60 * 24));
         
-        const amount = student.custom_fee || (coursePrices && coursePrices[student.course_type]) || this.calculateMonthlyFee(student.level);
-
         overdue.push({
           student,
           daysOverdue: Math.max(0, daysOverdue),
-          amount,
+          amount: remainingAmount,
+          originalAmount,
           dueDate: dueDate.toLocaleDateString('ar-SA')
         });
       }
@@ -74,8 +76,8 @@ class NotificationScheduler {
   }
 
   // Generate automatic payment notifications
-  generatePaymentNotifications(overduePayments: { student: Student; daysOverdue: number; amount: number; dueDate: string }[], currentMonth: string): ScheduledNotification[] {
-    return overduePayments.map(({ student, daysOverdue, amount, dueDate }) => {
+  generatePaymentNotifications(overduePayments: { student: Student; daysOverdue: number; amount: number; originalAmount?: number; dueDate: string }[], currentMonth: string): ScheduledNotification[] {
+    return overduePayments.map(({ student, daysOverdue, amount, originalAmount, dueDate }) => {
       const type = daysOverdue > 5 
         ? NotificationTypes.PAYMENT_OVERDUE 
         : NotificationTypes.PAYMENT_DUE;
@@ -84,6 +86,8 @@ class NotificationScheduler {
         parentName: student.parent_name || 'ولي الأمر',
         studentName: student.full_name,
         amount,
+        remainingAmount: amount,
+        originalAmount: originalAmount,
         month: currentMonth,
         dueDate,
         daysOverdue,
@@ -98,7 +102,8 @@ class NotificationScheduler {
         ...template,
         createdAt: new Date().toISOString(),
         status: 'pending',
-        amount
+        amount,
+        originalAmount
       };
     });
   }

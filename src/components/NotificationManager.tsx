@@ -17,7 +17,7 @@ export const NotificationManager: React.FC = () => {
     new Date().toLocaleString('ar-SA', { month: 'long' })
   );
   
-  const [overdueList, setOverdueList] = useState<{ student: any; daysOverdue: number; amount: number; dueDate: string }[]>([]);
+  const [overdueList, setOverdueList] = useState<{ student: any; daysOverdue: number; amount: number; originalAmount?: number; dueDate: string }[]>([]);
   const [absenceAlerts, setAbsenceAlerts] = useState<{ student: any; consecutiveDays: number }[]>([]);
   const [scheduledNotifications, setScheduledNotifications] = useState<ScheduledNotification[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);

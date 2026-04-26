@@ -59,23 +59,66 @@ export default function Reports() {
   const filteredCoachAttendance = filterData(coachAttendance);
 
   const handleExportDetailedFinancial = () => {
-    generateDetailedFinancialReport(filteredPayments, students);
+    const monthLabel = months.find(m => m.value === selectedMonth)?.label || '';
+    const reportMonth = selectedMonth ? `${monthLabel} ${selectedYear}` : 'تقرير عام';
+    generateDetailedFinancialReport(filteredPayments, students, reportMonth);
   };
 
   const handleExportCoachAttendance = () => {
     generateCoachAttendancePDF(filteredCoachAttendance);
   };
 
+  const handleExportCoachAttendanceExcel = () => {
+    const data = filteredCoachAttendance.map(a => ({
+      'اسم المدرب': a.coach_name,
+      'التاريخ': a.date,
+      'وقت الدخول': a.check_in ? new Date(a.check_in).toLocaleTimeString('ar-EG') : '-',
+      'وقت الخروج': a.check_out ? new Date(a.check_out).toLocaleTimeString('ar-EG') : '-',
+      'المدة (بالدقائق)': a.duration_minutes || 0,
+      'الحالة': a.status || 'حاضر'
+    }));
+    exportToExcel(data, 'تقرير_حضور_المدربين_المفصل');
+  };
+
   const handleExportStudents = () => {
-    exportToExcel(filteredStudents, 'تقرير_الطلاب_المصفى');
+    const data = filteredStudents.map(s => ({
+      'الاسم الكامل': s.full_name,
+      'العمر': s.age,
+      'المستوى': s.level,
+      'نوع الدورة': s.course_type || '-',
+      'رقم الهاتف': s.phone || '-',
+      'رقم هاتف ولي الأمر': s.parent_phone || '-',
+      'اسم ولي الأمر': s.parent_name || '-',
+      'تاريخ التسجيل': s.registration_date ? new Date(s.registration_date).toLocaleDateString('ar-EG') : '-',
+      'ملاحظات طبية': s.medical_notes || 'لا يوجد',
+      'الحالة': s.status === 'active' ? 'نشط' : 'غير نشط'
+    }));
+    exportToExcel(data, 'تقرير_الطلاب_المفصل');
   };
 
   const handleExportPayments = () => {
-    exportToExcel(filteredPayments, 'تقرير_المدفوعات_المصفى');
+    const data = filteredPayments.map(p => ({
+      'اسم الطالب': p.student_name,
+      'المبلغ': `${p.amount} ₪`,
+      'الشهر': p.month,
+      'السنة': p.year || '-',
+      'التاريخ': new Date(p.date).toLocaleDateString('ar-EG'),
+      'طريقة الدفع': p.method || 'نقداً',
+      'النوع': p.type || 'رسوم اشتراك'
+    }));
+    exportToExcel(data, 'تقرير_المدفوعات_المفصل');
   };
 
   const handleExportAttendance = () => {
-    exportToExcel(filteredBookings, 'تقرير_الحضور_المصفى');
+    const data = filteredBookings.map(b => ({
+      'اسم الطالب': b.student_name,
+      'اليوم': b.session_day || b.day,
+      'الوقت': b.session_time || b.start_time,
+      'الحالة': b.status,
+      'التاريخ': b.date ? new Date(b.date).toLocaleDateString('ar-EG') : '-',
+      'اسم المدرب': b.coach_name || b.trainer_name || '-'
+    }));
+    exportToExcel(data, 'تقرير_الحضور_المفصل');
   };
 
   return (
@@ -204,13 +247,22 @@ export default function Reports() {
             </div>
             <h3 className="text-lg font-bold text-slate-900 mb-2">حضور المدربين</h3>
             <p className="text-sm text-slate-500 mb-6">تقرير مفصل بحضور وغياب المدربين.</p>
-            <button 
-              onClick={handleExportCoachAttendance}
-              className="w-full bg-indigo-600 text-white py-2 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 transition-colors text-sm"
-            >
-              <FileDown size={18} />
-              تصدير تقرير الحضور (PDF)
-            </button>
+            <div className="w-full space-y-2">
+              <button 
+                onClick={handleExportCoachAttendance}
+                className="w-full bg-indigo-600 text-white py-2 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 transition-colors text-sm"
+              >
+                <FileDown size={18} />
+                تصدير PDF
+              </button>
+              <button 
+                onClick={handleExportCoachAttendanceExcel}
+                className="w-full bg-slate-100 text-slate-600 py-2 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-200 transition-colors text-xs"
+              >
+                <FileDown size={14} />
+                تصدير Excel
+              </button>
+            </div>
           </div>
         </Card>
       </div>

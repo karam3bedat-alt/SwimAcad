@@ -5,6 +5,7 @@ import { useSettings, useUpdateSettings } from '../hooks/useSettings';
 import { generatePaymentMessage, calculateMonthlyFee, formatAmount, PAYMENT_CONFIG, PaymentConfig } from '../services/paymentService';
 import { autoNotifier } from '../services/autoNotificationService';
 import { createWhatsAppLink } from '../utils/whatsapp';
+import { generatePaymentsPDF, generateDetailedFinancialReport } from '../services/pdfService';
 import { 
   DollarSign, 
   CheckCircle, 
@@ -24,7 +25,8 @@ import {
   Edit2,
   Trash2,
   History,
-  Search
+  Search,
+  Star
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { cn } from '../lib/utils';
@@ -72,67 +74,62 @@ export const PaymentManager: React.FC = () => {
   ];
 
   // Calculate Stats
-  const stats = useMemo(() => {
-    if (!students || !payments) return { total: 0, paid: 0, pending: 0, overdue: 0, revenue: 0 };
-
-    const monthPayments = payments.filter(p => {
-      const pDate = new Date(p.date);
-      return pDate.toLocaleString('ar-EG', { month: 'long', year: 'numeric' }) === selectedMonth;
-    });
-    
-    const paidStudentIds = new Set(monthPayments.map(p => p.student_id));
-    
-    const total = students.length;
-    const paid = paidStudentIds.size;
-    const pending = total - paid;
-    
-    // Calculate overdue (more than 5 days)
-    const today = new Date();
-    const overdue = students.filter(s => {
-      if (paidStudentIds.has(s.id)) return false;
-      const dueDate = new Date();
-      dueDate.setDate(1);
-      return (today.getTime() - dueDate.getTime()) > (5 * 24 * 60 * 60 * 1000);
-    }).length;
-
-    const revenue = monthPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-
-    return { total, paid, pending, overdue, revenue };
-  }, [students, payments, selectedMonth]);
-
   // Students with status
   const studentsWithStatus = useMemo(() => {
     if (!students) return [];
     
     return students.map(student => {
-      const payment = payments?.find(p => {
+      // Find all payments for this student in the selected month
+      const studentPayments = payments?.filter(p => {
+        if (!p || !p.date) return false;
         const pDate = new Date(p.date);
-        return p.student_id === student.id && 
-               pDate.toLocaleString('ar-EG', { month: 'long', year: 'numeric' }) === selectedMonth;
-      });
+        const pMonthStr = pDate?.toLocaleString('ar-EG', { month: 'long', year: 'numeric' }) || '';
+        // Also check if payment has a specific 'month' field that matches
+        return p.student_id === student.id && (pMonthStr === selectedMonth || p.month === selectedMonth);
+      }) || [];
+      
+      const totalPaid = studentPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
       
       let baseAmount = student.custom_fee || calculateMonthlyFee(student.course_type || student.level, currentConfig.coursePrices);
       
       // Loyalty discount: If scholar has >= 100 points, they get a discount (e.g., 100 NIS)
       const hasLoyaltyDiscount = (student.loyalty_points || 0) >= 100;
-      const amount = hasLoyaltyDiscount ? Math.max(0, baseAmount - 100) : baseAmount;
+      const requiredAmount = hasLoyaltyDiscount ? Math.max(0, baseAmount - 100) : baseAmount;
 
       const dueDate = new Date();
       dueDate.setDate(1);
       const today = new Date();
-      const daysOverdue = payment ? 0 : 
+      const daysOverdue = totalPaid >= requiredAmount ? 0 : 
         Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      let status: 'confirmed' | 'partial' | 'pending' = 'pending';
+      if (totalPaid >= requiredAmount) status = 'confirmed';
+      else if (totalPaid > 0) status = 'partial';
 
       return {
         ...student,
-        amount,
-        status: payment ? 'confirmed' : 'pending',
-        paymentDate: payment?.date,
+        requiredAmount,
+        totalPaid,
+        remainingAmount: Math.max(0, requiredAmount - totalPaid),
+        status,
+        paymentDate: studentPayments.length > 0 ? studentPayments[studentPayments.length - 1].date : undefined,
         daysOverdue: Math.max(0, daysOverdue),
-        receiptNumber: payment?.id
+        receiptNumber: studentPayments.length > 0 ? studentPayments[studentPayments.length - 1].id : undefined
       };
     });
-  }, [students, payments, selectedMonth]);
+  }, [students, payments, selectedMonth, currentConfig.coursePrices]);
+
+  const stats = useMemo(() => {
+    const total = studentsWithStatus.length;
+    const paid = studentsWithStatus.filter(s => s.status === 'confirmed').length;
+    const partial = studentsWithStatus.filter(s => s.status === 'partial').length;
+    const pending = studentsWithStatus.filter(s => s.status === 'pending').length;
+    const overdue = studentsWithStatus.filter(s => s.daysOverdue > 5).length;
+    const revenue = studentsWithStatus.reduce((sum, s) => sum + s.totalPaid, 0);
+    const expected = studentsWithStatus.reduce((sum, s) => sum + s.requiredAmount, 0);
+    
+    return { total, paid, partial, pending, overdue, revenue, expected };
+  }, [studentsWithStatus]);
 
   // Send payment request
   const sendPaymentRequest = (student: any, type: 'due' | 'overdue' | 'reminder' | 'confirmed' = 'due') => {
@@ -183,22 +180,14 @@ export const PaymentManager: React.FC = () => {
 
   // Export report
   const exportReport = () => {
-    const headers = ['الاسم', 'المستوى', 'الحالة', 'المبلغ', 'أيام التأخير'];
-    const rows = studentsWithStatus.map(s => [
-      s.full_name,
-      s.level,
-      s.status === 'confirmed' ? 'تم الدفع' : 'معلق',
-      s.amount,
-      s.daysOverdue
-    ]);
+    const currentPayments = payments?.filter(p => {
+      const pDate = new Date(p.date);
+      const pMonthStr = pDate.toLocaleString('ar-EG', { month: 'long', year: 'numeric' });
+      return pMonthStr === selectedMonth || p.month === selectedMonth;
+    }) || [];
     
-    const csvContent = "\uFEFF" + [headers, ...rows].map(r => r.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `تقرير-مدفوعات-${selectedMonth}.csv`;
-    link.click();
-    toast.success('تم تحميل التقرير بنجاح');
+    generateDetailedFinancialReport(currentPayments, students || [], selectedMonth);
+    toast.success('تم إنشاء التقرير المالي بنجاح');
   };
 
   if (studentsLoading || paymentsLoading || settingsLoading) {
@@ -449,6 +438,10 @@ export const PaymentManager: React.FC = () => {
             
             try {
               setIsProcessing(true);
+              const currentPoints = confirmingPayment.loyalty_points || 0;
+              const usedDiscount = currentPoints >= 100;
+              const newPoints = usedDiscount ? (currentPoints - 100 + 10) : (currentPoints + 10);
+
               await addPayment({
                 student_id: confirmingPayment.id,
                 student_name: confirmingPayment.full_name,
@@ -457,16 +450,17 @@ export const PaymentManager: React.FC = () => {
                 month: selectedMonth,
                 course_type: courseType,
                 date: new Date().toISOString(),
-                notes: confirmingPayment.loyalty_points >= 100 ? 'تم استخدام خصم الولاء (100 شيقل)' : ''
+                notes: usedDiscount ? 'تم استخدام خصم الولاء (100 شيقل)' : ''
               });
 
-              // Update Student course type if changed
-              if (courseType !== confirmingPayment.course_type) {
-                await updateStudent({
-                  id: confirmingPayment.id,
-                  data: { course_type: courseType }
-                });
-              }
+              // Update Student (course type and loyalty points)
+              await updateStudent({
+                id: confirmingPayment.id,
+                data: { 
+                  course_type: courseType,
+                  loyalty_points: newPoints
+                }
+              });
 
               const receiptNum = `REC-${Date.now()}-${confirmingPayment.id}`;
               const message = generatePaymentMessage(
@@ -719,10 +713,10 @@ const OverviewTab = ({ students, onSend, onConfirm }: { students: any[], onSend:
           <tr>
             <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">الطالب</th>
             <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">المستوى</th>
-            <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">المبلغ</th>
-            <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">النقاط</th>
+            <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">المبلغ المطلوب</th>
+            <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">المبلغ المدفوع</th>
             <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">الحالة</th>
-            <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">أيام التأخير</th>
+            <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">التأخير</th>
             <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">الإجراءات</th>
           </tr>
         </thead>
@@ -735,15 +729,23 @@ const OverviewTab = ({ students, onSend, onConfirm }: { students: any[], onSend:
               </td>
               <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{student.level}</td>
               <td className="px-6 py-4 font-bold text-slate-900 dark:text-slate-100">
-                {formatAmount(student.amount)}
+                {formatAmount(student.requiredAmount)}
                 {(student.loyalty_points || 0) >= 100 && (
-                  <span className="block text-[10px] text-emerald-600 font-bold">تم تطبيق خصم الولاء ✨</span>
+                  <span className="block text-[10px] text-emerald-600 font-bold">خصم ولاء ✨</span>
                 )}
               </td>
               <td className="px-6 py-4">
-                <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-lg text-xs font-bold">
-                  {student.loyalty_points || 0} نقطة
+                <span className={cn("font-bold", student.totalPaid > 0 ? "text-emerald-600" : "text-slate-400")}>
+                  {formatAmount(student.totalPaid)}
                 </span>
+                {student.remainingAmount > 0 && (
+                  <span className={cn(
+                    "block text-[10px] font-bold",
+                    student.totalPaid > 0 ? "text-rose-600" : "text-slate-400"
+                  )}>
+                    {student.totalPaid > 0 ? `باقي: ${formatAmount(student.remainingAmount)}` : `مطلوب: ${formatAmount(student.remainingAmount)}`}
+                  </span>
+                )}
               </td>
               <td className="px-6 py-4">
                 <StatusBadge status={student.status} daysOverdue={student.daysOverdue} />
@@ -757,24 +759,24 @@ const OverviewTab = ({ students, onSend, onConfirm }: { students: any[], onSend:
               </td>
               <td className="px-6 py-4">
                 <div className="flex gap-2">
-                  {student.status === 'pending' ? (
+                  {student.status !== 'confirmed' ? (
                     <>
                       <button
                         onClick={() => onSend(student, student.daysOverdue > 5 ? 'overdue' : 'due')}
                         className="bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-600 transition-colors"
                       >
-                        طلب دفع
+                        تذكير
                       </button>
                       <button
                         onClick={() => onConfirm(student)}
                         className="bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-600 transition-colors"
                       >
-                        تأكيد
+                        دفع
                       </button>
                     </>
                   ) : (
                     <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1 text-sm font-bold">
-                      <CheckCircle size={16} /> تم الدفع
+                      <CheckCircle size={16} /> مكتمل
                     </span>
                   )}
                 </div>
@@ -799,16 +801,30 @@ const OverviewTab = ({ students, onSend, onConfirm }: { students: any[], onSend:
           
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div className="bg-slate-50 dark:bg-slate-800/50 p-2 rounded-xl">
-              <p className="text-[10px] text-slate-400 mb-1">المبلغ</p>
-              <p className="font-bold text-slate-900 dark:text-slate-100">{formatAmount(student.amount)}</p>
+              <p className="text-[10px] text-slate-400 mb-1">المبلغ المطلوب</p>
+              <p className="font-bold text-slate-900 dark:text-slate-100">{formatAmount(student.requiredAmount)}</p>
               {(student.loyalty_points || 0) >= 100 && (
-                <span className="text-[10px] text-emerald-600 font-bold block mt-1">خصم ولاء ✨</span>
+                <span className="text-[10px] text-emerald-600 font-bold">خصم ولاء ✨</span>
               )}
             </div>
             <div className="bg-slate-50 dark:bg-slate-800/50 p-2 rounded-xl">
-              <p className="text-[10px] text-slate-400 mb-1">النقاط</p>
-              <p className="font-bold text-amber-600">{student.loyalty_points || 0} نقطة</p>
+              <p className="text-[10px] text-slate-400 mb-1">المدفوع / المتبقي</p>
+              <p className={cn("font-bold", student.totalPaid > 0 ? "text-emerald-600" : "text-slate-900")}>
+                {formatAmount(student.totalPaid)}
+              </p>
+              {student.remainingAmount > 0 && (
+                <p className="text-[10px] text-rose-600 font-bold">
+                   المتبقي: {formatAmount(student.remainingAmount)}
+                </p>
+              )}
             </div>
+          </div>
+
+          <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl flex justify-between items-center">
+            <p className="text-xs font-bold text-slate-500">نقاط الولاء</p>
+            <p className="font-bold text-amber-600 flex items-center gap-1">
+              {student.loyalty_points || 0} <Star size={14} />
+            </p>
           </div>
 
           {student.status === 'pending' && (

@@ -142,7 +142,8 @@ export const calculateMonthlyFee = (courseType: string, customPrices?: Record<st
 };
 
 // Format amount
-export const formatAmount = (amount: number) => {
+export const formatAmount = (amount: number | undefined | null) => {
+  if (amount === undefined || amount === null) return '0 ₪';
   return `${amount.toLocaleString()} ₪`;
 };
 

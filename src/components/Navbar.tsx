@@ -3,6 +3,8 @@ import { Bell, Search, User, Moon, Sun } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { useTheme } from '../context/ThemeContext';
 
+import { NotificationCenter } from './NotificationCenter';
+
 export function Navbar() {
   const { user, role } = useAuth();
   const { isDark, toggleDark } = useTheme();
@@ -29,10 +31,7 @@ export function Navbar() {
           {isDark ? <Sun size={20} /> : <Moon size={20} />}
         </button>
 
-        <button className="relative text-slate-500 hover:text-blue-600 transition-colors">
-          <Bell size={20} />
-          <span className="absolute -top-1 -left-1 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900"></span>
-        </button>
+        <NotificationCenter />
         
         <div className="flex items-center gap-3 border-r pr-6 border-slate-200 dark:border-slate-800">
           <div className="text-left">
