@@ -75,6 +75,7 @@ export default function Reports() {
       'وقت الدخول': a.check_in ? new Date(a.check_in).toLocaleTimeString('ar-EG') : '-',
       'وقت الخروج': a.check_out ? new Date(a.check_out).toLocaleTimeString('ar-EG') : '-',
       'المدة (بالدقائق)': a.duration_minutes || 0,
+      'عدد الدروس': a.lessons_count || 0,
       'الحالة': a.status || 'حاضر'
     }));
     exportToExcel(data, 'تقرير_حضور_المدربين_المفصل');

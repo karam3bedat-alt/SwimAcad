@@ -54,5 +54,11 @@ export const whatsappTemplates = {
   generalAnnouncement: (message: string) => 
     `إعلان هام 📢\n\n` +
     `${message}\n\n` +
-    `Sharks Olympic Academy 🏊‍♂️`
+    `Sharks Olympic Academy 🏊‍♂️`,
+
+  // Birthday greeting
+  birthday: (studentName: string) =>
+    `عيد ميلاد سعيد لبطل الأكاديمية *${studentName}*! 🎉🥳\n\n` +
+    `تتمنى أكاديمية القروش (Sharks) عاماً مليئاً بالصحة والنجاح والتألق في عالم السباحة.\n\n` +
+    `كل عام وأنتم بخير 🏊‍♂️🎂`
 };

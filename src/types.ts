@@ -66,6 +66,7 @@ export interface CoachAttendance {
   check_out?: string; // ISO timestamp
   duration_minutes?: number;
   status: 'حاضر' | 'متأخر' | 'مبكر';
+  lessons_count?: number;
 }
 
 export interface Session {

@@ -47,8 +47,8 @@ export const useCoachCheckIn = () => {
 export const useCoachCheckOut = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, coachId }: { id: string, coachId: string }) => 
-      coachAttendanceService.checkOut(id, coachId),
+    mutationFn: ({ id, coachId, lessonsCount }: { id: string, coachId: string, lessonsCount?: number }) => 
+      coachAttendanceService.checkOut(id, coachId, lessonsCount),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['coachAttendance'] });
       queryClient.invalidateQueries({ queryKey: ['trainers'] });

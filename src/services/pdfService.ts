@@ -146,6 +146,7 @@ export const generateCoachAttendancePDF = (attendance: any[]) => {
   drawArabicText(doc, `تاريخ التقرير: ${new Date().toLocaleDateString('ar-EG')}`, 105, 25, 10, '#475569');
   
   const tableData = attendance.map(a => [
+    a.lessons_count !== undefined ? `${a.lessons_count}` : '0',
     a.status || 'حاضر',
     a.duration_minutes ? `${a.duration_minutes} دقيقة` : '-',
     a.check_out ? new Date(a.check_out).toLocaleTimeString('ar-EG') : '-',
@@ -155,7 +156,7 @@ export const generateCoachAttendancePDF = (attendance: any[]) => {
   ]);
   
   autoTable(doc, {
-    head: [['الحالة', 'المدة', 'خروج', 'دخول', 'التاريخ', 'اسم المدرب']],
+    head: [['دروس', 'الحالة', 'المدة', 'خروج', 'دخول', 'التاريخ', 'اسم المدرب']],
     body: tableData,
     startY: 35,
     theme: 'grid',

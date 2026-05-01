@@ -40,6 +40,7 @@ export default function Attendance() {
   const [activeTab, setActiveTab] = useState<'bookings' | 'daily' | 'checksheet' | 'coaches'>(isCoach() ? 'daily' : 'bookings');
   const [searchTerm, setSearchTerm] = useState('');
   const [bulkStatus, setBulkStatus] = useState<Record<string, 'حضر' | 'غائب' | 'ملغي' | null>>({});
+  const [coachLessons, setCoachLessons] = useState<Record<string, number>>({});
 
   const filteredStudents = students.filter(s => {
     const matchesSearch = s.full_name?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -554,8 +555,28 @@ export default function Attendance() {
                       <span>خروج</span>
                       <span>{todayEntry?.check_out ? format(new Date(todayEntry.check_out), 'HH:mm') : '--:--'}</span>
                     </div>
+                    {todayEntry?.lessons_count !== undefined && (
+                      <div className="flex justify-between text-[10px] text-blue-500 font-bold mt-1 pt-1 border-t border-slate-50 dark:border-slate-800">
+                        <span>عدد الدروس</span>
+                        <span>{todayEntry.lessons_count} دروس</span>
+                      </div>
+                    )}
                   </div>
                   
+                  {isCheckedIn && (
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] font-bold text-slate-500 pr-1">عدد الدروس (يدوي)</label>
+                      <input 
+                        type="number" 
+                        min="0"
+                        placeholder="0"
+                        value={coachLessons[trainer.id] || ''}
+                        onChange={(e) => setCoachLessons(prev => ({ ...prev, [trainer.id]: parseInt(e.target.value) || 0 }))}
+                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl py-2 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  )}
+
                   {!isCheckedOut ? (
                     <button
                       onClick={async () => {
@@ -565,8 +586,19 @@ export default function Attendance() {
                             await checkInMutation.mutateAsync({ coachId: trainer.id, coachName: trainer.name });
                             toast.success(`تم تسجيل دخول: ${trainer.name}`, { id: toastId });
                           } else if (todayEntry) {
-                            await checkOutMutation.mutateAsync({ id: todayEntry.id, coachId: trainer.id });
-                            toast.success(`تم تسجيل خروج: ${trainer.name} (+10 نقاط)`, { id: toastId });
+                            const lessonsCount = coachLessons[trainer.id] || 0;
+                            await checkOutMutation.mutateAsync({ 
+                              id: todayEntry.id, 
+                              coachId: trainer.id, 
+                              lessonsCount 
+                            });
+                            toast.success(`تم تسجيل خروج: ${trainer.name} (+${10 + (lessonsCount * 10)} نقاط)`, { id: toastId });
+                            // Clear input
+                            setCoachLessons(prev => {
+                              const next = { ...prev };
+                              delete next[trainer.id];
+                              return next;
+                            });
                           }
                         } catch (err) {
                           toast.error('فشل العملية', { id: toastId });

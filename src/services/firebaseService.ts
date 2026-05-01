@@ -449,7 +449,7 @@ export const coachAttendanceService = {
     }
   },
 
-  async checkOut(id: string, coachId: string): Promise<void> {
+  async checkOut(id: string, coachId: string, lessonsCount?: number): Promise<void> {
     const path = `coach_attendance/${id}`;
     try {
       const { runTransaction, increment } = await import('firebase/firestore');
@@ -466,12 +466,14 @@ export const coachAttendanceService = {
         
         transaction.update(docRef, {
           check_out: checkOutTime,
-          duration_minutes: duration
+          duration_minutes: duration,
+          lessons_count: lessonsCount || 0
         });
 
-        // Award loyalty points to coach (e.g., 10 points per session)
+        // Award loyalty points to coach (e.g., 10 points per checkout + 10 points per lesson)
+        const totalPoints = 10 + (lessonsCount ? lessonsCount * 10 : 0);
         transaction.update(coachRef, {
-          loyalty_points: increment(10),
+          loyalty_points: increment(totalPoints),
           updatedAt: new Date().toISOString()
         });
       });
