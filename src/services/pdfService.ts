@@ -168,9 +168,15 @@ export const generateCoachAttendancePDF = (attendance: any[]) => {
 };
 
 export const generateDetailedFinancialReport = (payments: any[], students: any[], selectedMonth: string) => {
-  const doc = new jsPDF();
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4'
+  });
   
-  drawArabicText(doc, 'التقرير المالي التفصيلي', 105, 15, 20, '#101828', true);
+  const width = doc.internal.pageSize.getWidth();
+  
+  drawArabicText(doc, 'التقرير المالي التفصيلي والشامل', width / 2, 15, 20, '#101828', true);
   
   // Calculate aggregated data per student for this month
   const reportData = students.filter(s => s.status !== 'inactive').map(student => {
@@ -178,17 +184,21 @@ export const generateDetailedFinancialReport = (payments: any[], students: any[]
     const paid = studentPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
     const required = student.custom_fee || 600;
     const remaining = Math.max(0, required - paid);
-    const lastPayment = studentPayments.length > 0 ? studentPayments[studentPayments.length - 1] : null;
+    
+    // Join multiple payment details if they exists
+    const dates = studentPayments.map(p => new Date(p.date).toLocaleDateString('ar-EG')).join(' | ') || '-';
+    const methods = [...new Set(studentPayments.map(p => p.method || 'نقداً'))].join(' | ') || '-';
+    const types = [...new Set(studentPayments.map(p => p.type || 'إشتراك'))].join(' | ') || '-';
 
     return {
       name: student.full_name,
       required: required,
       paid: paid,
       remaining: remaining,
-      date: lastPayment ? new Date(lastPayment.date).toLocaleDateString('ar-EG') : '-',
+      dates: dates,
       month: selectedMonth,
-      method: lastPayment ? (lastPayment.method || 'نقداً') : '-',
-      type: lastPayment ? (lastPayment.type || 'اشتراك') : '-'
+      methods: methods,
+      types: types
     };
   });
 
@@ -196,13 +206,13 @@ export const generateDetailedFinancialReport = (payments: any[], students: any[]
   const grandTotalPaid = reportData.reduce((sum, r) => sum + r.paid, 0);
   const grandTotalRemaining = reportData.reduce((sum, r) => sum + r.remaining, 0);
   
-  drawArabicText(doc, `الفترة: ${selectedMonth}`, 190, 30, 10, '#475569', false, 'right');
-  drawArabicText(doc, `تاريخ التقرير: ${new Date().toLocaleDateString('ar-EG')}`, 20, 30, 9, '#475569', false, 'left');
+  drawArabicText(doc, `الفترة: ${selectedMonth}`, width - 20, 30, 11, '#475569', false, 'right');
+  drawArabicText(doc, `تاريخ التقرير: ${new Date().toLocaleDateString('ar-EG')}`, 20, 30, 10, '#475569', false, 'left');
 
   const tableData = reportData.map(r => [
-    r.type,
-    r.method,
-    r.date,
+    r.types,
+    r.methods,
+    r.dates,
     `${r.remaining.toLocaleString()} ₪`,
     `${r.paid.toLocaleString()} ₪`,
     `${r.required.toLocaleString()} ₪`,
@@ -223,12 +233,26 @@ export const generateDetailedFinancialReport = (payments: any[], students: any[]
   ]);
 
   autoTable(doc, {
-    head: [['النوع', 'الطريقة', 'التاريخ', 'المتبقي', 'المدفوع', 'الاشتراك', 'الشهر', 'اسم الطالب']],
+    head: [['النوع', 'طريقة الدفع', 'تواريخ الدفع', 'المتبقي', 'إجمالي المدفوع', 'المبلغ المطلوب', 'الشهر', 'اسم الطالب']],
     body: tableData,
     startY: 40,
     theme: 'grid',
-    headStyles: { fillColor: [16, 185, 129], textColor: [16, 185, 129] },
-    ...arabicTableConfig(doc, 8),
+    headStyles: { 
+      fillColor: [16, 185, 129], 
+      textColor: [16, 185, 129],
+      fontSize: 9
+    },
+    columnStyles: {
+      0: { cellWidth: 25 }, // Type
+      1: { cellWidth: 25 }, // Method
+      2: { cellWidth: 45 }, // Dates
+      3: { cellWidth: 25 }, // Remaining
+      4: { cellWidth: 25 }, // Paid
+      5: { cellWidth: 25 }, // Required
+      6: { cellWidth: 25 }, // Month
+      7: { cellWidth: 'auto' } // Name
+    },
+    ...arabicTableConfig(doc, 8.5),
     didParseCell: (data) => {
       if (data.row.index === tableData.length - 1) {
         data.cell.styles.fontStyle = 'bold';

@@ -98,16 +98,40 @@ export default function Reports() {
   };
 
   const handleExportPayments = () => {
-    const data = filteredPayments.map(p => ({
-      'اسم الطالب': p.student_name,
-      'المبلغ': `${p.amount} ₪`,
-      'الشهر': p.month,
-      'السنة': p.year || '-',
-      'التاريخ': new Date(p.date).toLocaleDateString('ar-EG'),
-      'طريقة الدفع': p.method || 'نقداً',
-      'النوع': p.type || 'رسوم اشتراك'
-    }));
-    exportToExcel(data, 'تقرير_المدفوعات_المفصل');
+    const monthLabel = months.find(m => m.value === selectedMonth)?.label || 'كل الأشهر';
+    const reportMonth = selectedMonth ? `${monthLabel} ${selectedYear}` : 'تقرير عام';
+    
+    // Group payments by student to provide a detailed summary per student as requested
+    const reportData = students.filter(s => s.status !== 'غير نشط').map(student => {
+      const studentPayments = filteredPayments.filter(p => p.student_id === student.id);
+      const paid = studentPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+      const required = student.custom_fee || 600;
+      const remaining = Math.max(0, required - paid);
+      
+      const dates = studentPayments.map(p => new Date(p.date).toLocaleDateString('ar-EG')).join(', ') || '-';
+      const methods = [...new Set(studentPayments.map(p => p.method || 'نقداً'))].join(', ') || '-';
+      const types = [...new Set(studentPayments.map(p => p.type || 'إشتراك'))].join(', ') || '-';
+
+      return {
+        'اسم الطالب': student.full_name,
+        'فترة التقرير': reportMonth,
+        'قيمة الاشتراك': `${required} ₪`,
+        'إجمالي المدفوع': `${paid} ₪`,
+        'المبلغ المتبقي': `${remaining} ₪`,
+        'تواريخ الدفع': dates,
+        'طرق الدفع': methods,
+        'نوع الدفعة': types,
+        'رقم الهاتف': student.phone || student.parent_phone || '-',
+        'حالة الطالب': student.status === 'نشط' ? 'نشط' : 'غير نشط'
+      };
+    });
+
+    // Only export students who have a required fee or have made a payment
+    const exportableData = reportData.filter(r => 
+      parseFloat(r['إجمالي المدفوع']) > 0 || parseFloat(r['قيمة الاشتراك']) > 0
+    );
+
+    exportToExcel(exportableData, `التقرير_المالي_التفصيلي_${reportMonth}`);
   };
 
   const handleExportAttendance = () => {
