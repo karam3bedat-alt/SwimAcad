@@ -13,7 +13,26 @@ export interface Student {
   loyalty_points?: number;
   birth_date?: string;
   assigned_coach_id?: string;
+  course_id?: string;
   status?: 'نشط' | 'غير نشط';
+  // New subscription fields
+  subscription_model?: 'monthly' | 'credit' | 'rolling';
+  remaining_sessions?: number;
+  subscription_start_date?: string;
+  subscription_end_date?: string;
+  first_session_date?: string;
+}
+
+export interface CourseCycle {
+  id: string;
+  name: string;
+  course_type: string;
+  start_date: string;
+  end_date: string;
+  estimated_cost: number;
+  description?: string;
+  coach_id?: string;
+  status: 'نشط' | 'مكتمل' | 'قادم';
 }
 
 export interface StudentEvaluation {
@@ -113,15 +132,17 @@ export interface Payment {
   loyalty_points_used?: number;
 }
 
+export interface PaymentConfig {
+  bitPhone: string;
+  payboxPhone: string;
+  bankAccount: string;
+  bankName: string;
+  academyName: string;
+  academyPhone: string;
+  coursePrices?: Record<string, number>;
+}
+
 export interface AppSettings {
-  payment_config: {
-    bitPhone: string;
-    payboxPhone: string;
-    bankAccount: string;
-    bankName: string;
-    academyName: string;
-    academyPhone: string;
-    coursePrices?: Record<string, number>;
-  };
+  payment_config: PaymentConfig;
   last_updated?: string;
 }

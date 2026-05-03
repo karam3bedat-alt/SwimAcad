@@ -68,6 +68,29 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   throw new Error(JSON.stringify(errInfo));
 }
 
+export function cleanFirestoreData(data: any) {
+  // Remove undefined values which are not allowed in Firestore
+  // JSON stringify/parse is a simple way to remove undefined in deeply nested objects
+  // but it also removes class instances like Date (converts to string)
+  // For Firestore, we usually want to keep standard types but remove undefined.
+  if (data === null || typeof data !== 'object') return data;
+  
+  const result: any = Array.isArray(data) ? [] : {};
+  
+  Object.keys(data).forEach(key => {
+    const value = data[key];
+    if (value !== undefined) {
+      if (typeof value === 'object' && value !== null && !(value instanceof Date)) {
+        result[key] = cleanFirestoreData(value);
+      } else {
+        result[key] = value;
+      }
+    }
+  });
+  
+  return result;
+}
+
 // خدمة الطلاب
 export const studentsService = {
   // جلب جميع الطلاب
@@ -90,8 +113,9 @@ export const studentsService = {
   async add(studentData: Omit<Student, 'id'>): Promise<Student> {
     const path = 'students';
     try {
+      const cleaned = cleanFirestoreData(studentData);
       const docRef = await addDoc(collection(db, path), {
-        ...studentData,
+        ...cleaned,
         createdAt: new Date().toISOString()
       });
       return { id: docRef.id, ...studentData } as Student;
@@ -106,10 +130,9 @@ export const studentsService = {
     const path = `students/${id}`;
     try {
       const docRef = doc(db, 'students', id);
-      const updateData: any = { ...data };
+      const cleaned = cleanFirestoreData(data);
+      const updateData: any = { ...cleaned };
       
-      // If data is not using FieldValue, we can clean it, but usually we should just pass it
-      // if it's a partial update.
       if (!updateData.updatedAt) {
         updateData.updatedAt = new Date().toISOString();
       }

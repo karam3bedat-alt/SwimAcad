@@ -55,8 +55,8 @@ interface StudentEvaluationsModalProps {
 }
 
 export function StudentEvaluationsModal({ isOpen, onClose, student }: StudentEvaluationsModalProps) {
-  const { data: evaluations = [], isLoading } = useStudentEvaluations(student.id);
-  const addEvaluationMutation = useAddStudentEvaluation(student.id);
+  const { data: evaluations = [], isLoading } = useStudentEvaluations(student?.id || '');
+  const addEvaluationMutation = useAddStudentEvaluation(student?.id || '');
   const { user } = useAuth();
   
   const [isAdding, setIsAdding] = useState(false);
@@ -66,6 +66,8 @@ export function StudentEvaluationsModal({ isOpen, onClose, student }: StudentEva
     technique: 5,
     behavior: 5
   });
+
+  if (!student) return null;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -212,12 +214,14 @@ interface StudentMediaModalProps {
 }
 
 export function StudentMediaModal({ isOpen, onClose, student }: StudentMediaModalProps) {
-  const { data: media = [], isLoading } = useStudentMedia(student.id);
-  const addMediaMutation = useAddStudentMedia(student.id);
+  const { data: media = [], isLoading } = useStudentMedia(student?.id || '');
+  const addMediaMutation = useAddStudentMedia(student?.id || '');
   const { user } = useAuth();
   const [isAdding, setIsAdding] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+
+  if (!student) return null;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

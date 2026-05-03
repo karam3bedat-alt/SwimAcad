@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Modal } from './Modal';
 import { Student, Payment, Booking } from '../types';
-import { Loader2, User, Wallet, Calendar, Star, Image as ImageIcon, Phone, MapPin, Award, UserCheck, Clock } from 'lucide-react';
+import { Loader2, User, Wallet, Calendar, Star, Image as ImageIcon, Phone, MapPin, Award, UserCheck, Clock, RefreshCw } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { usePayments } from '../hooks/usePayments';
 import { useBookings } from '../hooks/useBookings';
@@ -13,7 +13,7 @@ import { useI18n } from '../lib/LanguageContext';
 interface StudentProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
-  student: Student;
+  student: Student | null;
 }
 
 type TabType = 'info' | 'payments' | 'attendance' | 'evaluations' | 'media';
@@ -24,8 +24,10 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
   
   const { data: allPayments = [], isLoading: isLoadingPayments } = usePayments();
   const { data: allBookings = [], isLoading: isLoadingBookings } = useBookings();
-  const { data: evaluations = [], isLoading: isLoadingEvaluations } = useStudentEvaluations(student.id);
-  const { data: media = [], isLoading: isLoadingMedia } = useStudentMedia(student.id);
+  const { data: evaluations = [], isLoading: isLoadingEvaluations } = useStudentEvaluations(student?.id || '');
+  const { data: media = [], isLoading: isLoadingMedia } = useStudentMedia(student?.id || '');
+
+  if (!student) return null;
 
   const studentPayments = allPayments.filter(p => p.student_id === student.id);
   const studentBookings = allBookings.filter(b => b.student_id === student.id);
@@ -54,6 +56,29 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
               <InfoCard icon={Star} label="نوع الدورة" value={student.course_type || 'غير محدد'} />
               <InfoCard icon={Clock} label="العمر" value={`${student.age} سنة`} />
               <InfoCard icon={Award} label="نقاط الولاء" value={`${student.loyalty_points || 0} نقطة`} />
+              <InfoCard 
+                icon={RefreshCw} 
+                label="نظام الاشتراك" 
+                value={
+                  student.subscription_model === 'credit' ? 'نظام حصص (رصيد)' :
+                  student.subscription_model === 'rolling' ? 'نظام فترة متدحرجة' :
+                  'نظام شهري ميلادي'
+                } 
+              />
+              {student.subscription_model === 'credit' && (
+                <InfoCard 
+                  icon={Clock} 
+                  label="الرصيد المتبقي" 
+                  value={`${student.remaining_sessions || 0} حصص`} 
+                />
+              )}
+              {student.subscription_model === 'rolling' && (
+                <InfoCard 
+                  icon={Calendar} 
+                  label="تاريخ انتهاء الاشتراك" 
+                  value={student.subscription_end_date ? format(new Date(student.subscription_end_date), 'yyyy-MM-dd') : '-'} 
+                />
+              )}
             </div>
             
             {student.medical_notes && (

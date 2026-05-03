@@ -6,6 +6,7 @@ import { Modal } from '../components/Modal';
 import { toast } from 'react-hot-toast';
 import { useStudents, useAddStudent, useUpdateStudent, useDeleteStudent } from '../hooks/useStudents';
 import { usePayments } from '../hooks/usePayments';
+import { useCourses } from '../hooks/useCourses';
 import { generateStudentsPDF, generateCertificatePDF } from '../services/pdfService';
 import { createWhatsAppLink, whatsappTemplates } from '../utils/whatsapp';
 import { BroadcastWhatsApp } from '../components/BroadcastWhatsApp';
@@ -23,6 +24,7 @@ export default function Students() {
   const { t, language } = useI18n();
   const { data: students = [], isLoading: isLoadingStudents, error: studentsError } = useStudents();
   const { data: payments = [], isLoading: isLoadingPayments } = usePayments();
+  const { data: courses = [] } = useCourses();
   const { data: appSettings } = useSettings();
   
   const currentPrices = (appSettings?.payment_config as PaymentConfig)?.coursePrices || DEFAULT_COURSE_PRICES;
@@ -41,7 +43,8 @@ export default function Students() {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterLevel, setFilterLevel] = useState(t('all_levels'));
-  const [filterCourse, setFilterCourse] = useState('جميع الدورات');
+  const [filterCourseType, setFilterCourseType] = useState('جميع الأنواع');
+  const [filterCourseCycle, setFilterCourseCycle] = useState('جميع الدورات');
 
   const balances = useMemo(() => {
     const newBalances: Record<string, number> = {};
@@ -78,7 +81,12 @@ export default function Students() {
           birth_date: (formData.get('birth_date') as string) || '',
           custom_fee: formData.get('custom_fee') ? Number(formData.get('custom_fee')) : null,
           loyalty_points: Number(formData.get('loyalty_points')) || 0,
-          registration_date: new Date().toISOString()
+          registration_date: new Date().toISOString(),
+          course_id: (formData.get('course_id') as string) || '',
+          subscription_model: (formData.get('subscription_model') as any) || 'monthly',
+          remaining_sessions: formData.get('subscription_model') === 'credit' ? Number(formData.get('remaining_sessions')) || 0 : 0,
+          subscription_start_date: formData.get('subscription_start_date') ? new Date(formData.get('subscription_start_date') as string).toISOString() : new Date().toISOString(),
+          subscription_end_date: formData.get('subscription_end_date') ? new Date(formData.get('subscription_end_date') as string).toISOString() : (formData.get('subscription_model') !== 'monthly' ? new Date(new Date().setDate(new Date().getDate() + 31)).toISOString() : null)
         });
       toast.success('تمت إضافة الطالب بنجاح', { id: toastId });
       setIsModalOpen(false);
@@ -107,7 +115,12 @@ export default function Students() {
             course_type: (formData.get('course_type') as string) || '',
             birth_date: (formData.get('birth_date') as string) || '',
             custom_fee: formData.get('custom_fee') ? Number(formData.get('custom_fee')) : null,
-            loyalty_points: Number(formData.get('loyalty_points')) || 0
+            loyalty_points: Number(formData.get('loyalty_points')) || 0,
+            course_id: (formData.get('course_id') as string) || '',
+            subscription_model: (formData.get('subscription_model') as any) || 'monthly',
+            remaining_sessions: formData.get('subscription_model') === 'credit' ? Number(formData.get('remaining_sessions')) || 0 : 0,
+            subscription_start_date: formData.get('subscription_start_date') ? new Date(formData.get('subscription_start_date') as string).toISOString() : selectedStudent.subscription_start_date,
+            subscription_end_date: formData.get('subscription_end_date') ? new Date(formData.get('subscription_end_date') as string).toISOString() : selectedStudent.subscription_end_date
           }
         });
       toast.success('تم تحديث بيانات الطالب بنجاح', { id: toastId });
@@ -137,9 +150,10 @@ export default function Students() {
     const matchesSearch = s.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                          (s.phone || s.parent_phone)?.includes(searchTerm);
     const matchesLevel = filterLevel === t('all_levels') || s.level === filterLevel;
-    const matchesCourse = filterCourse === 'جميع الدورات' || s.course_type === filterCourse;
+    const matchesCourseType = filterCourseType === 'جميع الأنواع' || s.course_type === filterCourseType;
+    const matchesCourseCycle = filterCourseCycle === 'جميع الدورات' || s.course_id === filterCourseCycle;
     const matchesCoach = viewMode === 'all' || s.assigned_coach_id === user?.uid;
-    return matchesSearch && matchesLevel && matchesCourse && matchesCoach;
+    return matchesSearch && matchesLevel && matchesCourseType && matchesCourseCycle && matchesCoach;
   });
 
   const handleAssignToMe = async (student: Student) => {
@@ -425,13 +439,25 @@ export default function Students() {
           </div>
           <div className="flex items-center gap-2 flex-1 md:flex-none">
             <select 
-              value={filterCourse}
-              onChange={(e) => setFilterCourse(e.target.value)}
+              value={filterCourseType}
+              onChange={(e) => setFilterCourseType(e.target.value)}
               className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full md:min-w-[140px] dark:text-slate-200"
             >
-              <option value="جميع الدورات">جميع الدورات</option>
+              <option value="جميع الأنواع">جميع الأنواع</option>
               {courseTypes.map(course => (
                 <option key={course.name} value={course.name}>{course.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2 flex-1 md:flex-none">
+            <select 
+              value={filterCourseCycle}
+              onChange={(e) => setFilterCourseCycle(e.target.value)}
+              className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full md:min-w-[140px] dark:text-slate-200"
+            >
+              <option value="جميع الدورات">جميع الدورات (Cycles)</option>
+              {courses.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
           </div>
@@ -474,7 +500,14 @@ export default function Students() {
                         }}
                         className="cursor-pointer group"
                       >
-                        <p className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-blue-600 transition-colors">{student.full_name}</p>
+                        <p className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-blue-600 transition-colors">
+                          {student.full_name}
+                          {student.course_id && (
+                            <span className="mr-2 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded text-[9px] font-black uppercase">
+                              {courses.find(c => c.id === student.course_id)?.name}
+                            </span>
+                          )}
+                        </p>
                         <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
                           <Phone size={12} /> {student.phone || student.parent_phone}
                         </p>
@@ -538,7 +571,14 @@ export default function Students() {
                     {student.full_name?.charAt(0)}
                   </div>
                   <div>
-                    <h4 className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-blue-600 transition-colors">{student.full_name}</h4>
+                    <h4 className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-blue-600 transition-colors">
+                      {student.full_name}
+                      {student.course_id && (
+                        <span className="block mt-0.5 text-[9px] font-black text-blue-600 uppercase">
+                          {courses.find(c => c.id === student.course_id)?.name}
+                        </span>
+                      )}
+                    </h4>
                     <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 text-right" dir="ltr">
                       {student.phone || student.parent_phone} <Phone size={12} />
                     </p>
@@ -682,6 +722,57 @@ export default function Students() {
               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
             />
           </div>
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">الدورة (Cycle)</label>
+            <select 
+              name="course_id" 
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
+            >
+              <option value="">لا يوجد (نظام شهري)</option>
+              {courses.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">نظام الاشتراك</label>
+            <select 
+              name="subscription_model" 
+              defaultValue="monthly"
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
+            >
+              <option value="monthly">نظام شهري ميلادي</option>
+              <option value="rolling">نظام فترة متدحرجة (30 يوم)</option>
+              <option value="credit">نظام حصص (رصيد)</option>
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">عدد الحصص (للنظام الحصص)</label>
+            <input 
+              name="remaining_sessions" 
+              type="number"
+              defaultValue={8}
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">تاريخ بداية الاشتراك</label>
+            <input 
+              name="subscription_start_date" 
+              type="date"
+              defaultValue={new Date().toISOString().split('T')[0]}
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">تاريخ انتهاء الاشتراك</label>
+            <input 
+              name="subscription_end_date" 
+              type="date"
+              defaultValue={new Date(new Date().setDate(new Date().getDate() + 31)).toISOString().split('T')[0]}
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
+            />
+          </div>
           <div className="space-y-2 md:col-span-2">
             <label className="text-sm font-bold text-slate-700 dark:text-slate-300">{t('medical_notes')}</label>
             <textarea 
@@ -805,6 +896,58 @@ export default function Students() {
                 name="loyalty_points" 
                 type="number"
                 defaultValue={selectedStudent.loyalty_points || 0}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">الدورة (Cycle)</label>
+              <select 
+                name="course_id" 
+                defaultValue={selectedStudent.course_id}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
+              >
+                <option value="">لا يوجد (نظام شهري)</option>
+                {courses.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">نظام الاشتراك</label>
+              <select 
+                name="subscription_model" 
+                defaultValue={selectedStudent.subscription_model || 'monthly'}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
+              >
+                <option value="monthly">نظام شهري ميلادي</option>
+                <option value="rolling">نظام فترة متدحرجة (30 يوم)</option>
+                <option value="credit">نظام حصص (رصيد)</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">عدد الحصص (للنظام الحصص)</label>
+              <input 
+                name="remaining_sessions" 
+                type="number"
+                defaultValue={selectedStudent.remaining_sessions || 0}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">تاريخ بداية الاشتراك</label>
+              <input 
+                name="subscription_start_date" 
+                type="date"
+                defaultValue={selectedStudent.subscription_start_date ? selectedStudent.subscription_start_date.split('T')[0] : new Date().toISOString().split('T')[0]}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">تاريخ انتهاء الاشتراك</label>
+              <input 
+                name="subscription_end_date" 
+                type="date"
+                defaultValue={selectedStudent.subscription_end_date ? selectedStudent.subscription_end_date.split('T')[0] : ''}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
               />
             </div>

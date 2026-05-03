@@ -16,6 +16,7 @@ import Reports from './pages/Reports';
 import Notifications from './pages/Notifications';
 import Settings from './pages/Settings';
 import CoachProfile from './pages/CoachProfile';
+import Courses from './pages/Courses';
 import { PaymentPage } from './pages/PaymentPage';
 import Login from './pages/Login';
 import { Toaster } from 'react-hot-toast';
@@ -52,6 +53,7 @@ function AppContent() {
               <Route path="/sessions" element={<ProtectedRoute allowedRoles={['admin']}><Sessions /></ProtectedRoute>} />
               <Route path="/bookings" element={<ProtectedRoute><Bookings /></ProtectedRoute>} />
               <Route path="/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
+              <Route path="/courses" element={<ProtectedRoute allowedRoles={['admin']}><Courses /></ProtectedRoute>} />
               <Route path="/payments" element={<ProtectedRoute allowedRoles={['admin']}><Payments /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute allowedRoles={['admin']}><Reports /></ProtectedRoute>} />
               <Route path="/notifications" element={<ProtectedRoute allowedRoles={['admin']}><Notifications /></ProtectedRoute>} />

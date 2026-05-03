@@ -34,8 +34,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         setUser(user);
         if (user) {
+          const admins = ['fosa.academyy@gmail.com', 'karam.3bedat@gmail.com'];
           // Immediate role assignment for admin based on email
-          if (user.email === 'fosa.academyy@gmail.com') {
+          if (admins.includes(user.email || '')) {
             setRole('admin');
           }
 
@@ -45,15 +46,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (userDoc.exists()) {
             const userData = userDoc.data();
             // Force admin role if email matches the admin email
-            if (user.email === 'fosa.academyy@gmail.com' && userData.role !== 'admin') {
+            if (admins.includes(user.email || '') && userData.role !== 'admin') {
               await setDoc(userDocRef, { ...userData, role: 'admin' }, { merge: true });
               setRole('admin');
-            } else if (user.email !== 'fosa.academyy@gmail.com') {
+            } else if (!admins.includes(user.email || '')) {
               setRole(userData.role);
             }
           } else {
             // Default role for new users
-            const defaultRole = user.email === 'fosa.academyy@gmail.com' ? 'admin' : 'coach';
+            const defaultRole = admins.includes(user.email || '') ? 'admin' : 'coach';
             await setDoc(userDocRef, {
               uid: user.uid,
               email: user.email,
@@ -68,8 +69,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (err) {
         console.error("Auth error:", err);
+        const admins = ['fosa.academyy@gmail.com', 'karam.3bedat@gmail.com'];
         // Even if firestore fails, if it's the admin email, keep the role
-        if (user?.email === 'fosa.academyy@gmail.com') {
+        if (admins.includes(user?.email || '')) {
           setRole('admin');
         }
       } finally {

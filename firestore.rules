@@ -15,7 +15,8 @@ service cloud.firestore {
 
     function isAdmin() {
       // Primary admin email bypass for setup
-      let isPrimaryAdmin = request.auth.token.email == "fosa.academyy@gmail.com";
+      let isPrimaryAdmin = request.auth.token.email == "fosa.academyy@gmail.com" || 
+                           request.auth.token.email == "karam.3bedat@gmail.com";
       // Document-based admin check
       let hasAdminDoc = exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
                         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
@@ -23,9 +24,10 @@ service cloud.firestore {
     }
 
     function isCoach() {
-      return isSignedIn() && 
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
+      // Coaches are either those with coach role in users or those with established trainer IDs
+      let hasCoachDoc = exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coach';
+      return isSignedIn() && (hasCoachDoc || exists(/databases/$(database)/documents/trainers/$(request.auth.uid)));
     }
 
     function isOwner(userId) {
@@ -84,6 +86,11 @@ service cloud.firestore {
 
     match /student_media/{mediaId} {
       allow read, list: if isSignedIn();
+      allow write: if isAdmin() || isCoach();
+    }
+
+    match /courses/{courseId} {
+      allow read: if isSignedIn();
       allow write: if isAdmin() || isCoach();
     }
 

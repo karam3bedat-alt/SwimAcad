@@ -17,7 +17,7 @@ import {
 import { cn, exportToExcel } from '../lib/utils';
 import { toast } from 'react-hot-toast';
 import { useBookings, useUpdateBookingStatus, useAddBooking, useDeleteBooking } from '../hooks/useBookings';
-import { useStudents } from '../hooks/useStudents';
+import { useStudents, useUpdateStudent } from '../hooks/useStudents';
 import { useTrainers, useCoachAttendance, useCoachCheckIn, useCoachMarkAbsent, useCoachCheckOut, useAddCoachAttendance } from '../hooks/useTrainers';
 import { Modal } from '../components/Modal';
 import { format, isToday, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
@@ -49,12 +49,44 @@ export default function Attendance() {
   const updateStatusMutation = useUpdateBookingStatus();
   const addBookingMutation = useAddBooking();
   const deleteBookingMutation = useDeleteBooking();
+  const updateStudentMutation = useUpdateStudent();
 
   const [coachLessons, setCoachLessons] = useState<Record<string, number>>({});
   
   // Details Modal States
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [selectedCoachId, setSelectedCoachId] = useState<string | null>(null);
+
+  const isSubscriptionExpired = (student: any) => {
+    const today = new Date();
+    if (student.subscription_model === 'rolling') {
+      if (student.subscription_end_date) {
+        return new Date(student.subscription_end_date) < today;
+      }
+      // Fallback if no end date but has start date
+      if (student.subscription_start_date) {
+        const startDate = new Date(student.subscription_start_date);
+        const expiryDate = new Date(startDate);
+        expiryDate.setDate(expiryDate.getDate() + 31);
+        return today > expiryDate;
+      }
+    }
+    if (student.subscription_model === 'credit') {
+      // Expiry check even for credits if date is set
+      if (student.subscription_end_date) {
+        return new Date(student.subscription_end_date) < today;
+      }
+      // If no end date, check 31 days from first session or start date
+      const referenceDate = student.subscription_start_date || student.first_session_date;
+      if (referenceDate) {
+        const startDate = new Date(referenceDate);
+        const expiryDate = new Date(startDate);
+        expiryDate.setDate(expiryDate.getDate() + 31);
+        return today > expiryDate;
+      }
+    }
+    return false;
+  };
 
   const courses = [
     'دورات عادية مع مواصلات فوق ال ٥ سنوات',
@@ -118,11 +150,21 @@ export default function Attendance() {
     try {
       if (existingBooking) {
         if (existingBooking.status === status) {
-          // If already has this status, maybe delete? 
-          // For now just re-confirm
           await updateStatusMutation.mutateAsync({ id: existingBooking.id, status });
         } else {
           await updateStatusMutation.mutateAsync({ id: existingBooking.id, status });
+          
+          // If changing FROM anything TO 'حضر', deduct session
+          if (status === 'حضر' && student.subscription_model === 'credit') {
+            const remaining = (student.remaining_sessions || 0) - 1;
+            const updateData: any = { remaining_sessions: Math.max(0, remaining) };
+            if (!student.first_session_date) {
+              updateData.first_session_date = new Date().toISOString();
+            }
+            await updateStudentMutation.mutateAsync({ id: student.id, data: updateData });
+          }
+          // If changing FROM 'حضر' TO anything ELSE, refund session? 
+          // (Usually safety measure, but let's keep it simple for now as per user request)
         }
       } else {
         await addBookingMutation.mutateAsync({
@@ -134,6 +176,16 @@ export default function Attendance() {
           session_day: format(new Date(), 'EEEE'),
           session_time: format(new Date(), 'HH:mm')
         });
+
+        // New attendance 'حضر' and credit system
+        if (status === 'حضر' && student.subscription_model === 'credit') {
+          const remaining = (student.remaining_sessions || 0) - 1;
+          const updateData: any = { remaining_sessions: Math.max(0, remaining) };
+          if (!student.first_session_date) {
+            updateData.first_session_date = new Date().toISOString();
+          }
+          await updateStudentMutation.mutateAsync({ id: student.id, data: updateData });
+        }
       }
 
       if (status === 'غائب') {
@@ -430,8 +482,27 @@ export default function Attendance() {
                               {t('birthday_today')}
                             </span>
                           )}
+                          {(isSubscriptionExpired(student) || (student.subscription_model === 'credit' && (student.remaining_sessions || 0) <= 0)) && (
+                            <span className="flex items-center gap-1 px-2 py-0.5 bg-rose-50 text-rose-600 rounded-full text-[10px] font-bold">
+                              <AlertCircle size={10} />
+                              منتهي
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs text-slate-500">{student.course_type || student.level}</p>
+                        {student.subscription_model === 'credit' && (
+                          <p className={cn(
+                            "text-[10px] font-bold",
+                            (student.remaining_sessions || 0) <= 1 ? "text-rose-500" : "text-blue-500"
+                          )}>
+                            الرصيد: {student.remaining_sessions || 0} حصص
+                          </p>
+                        )}
+                        {student.subscription_model === 'rolling' && student.subscription_end_date && (
+                          <p className="text-[10px] font-medium text-slate-400">
+                            ينتهي: {new Date(student.subscription_end_date).toLocaleDateString('ar-EG')}
+                          </p>
+                        )}
                       </div>
                     </div>
                     
@@ -667,11 +738,27 @@ export default function Attendance() {
                       <td className="px-6 py-3">
                         <p 
                           onClick={() => setSelectedStudentId(student.id)}
-                          className="font-bold text-slate-900 dark:text-slate-100 cursor-pointer hover:text-blue-600"
+                          className="font-bold text-slate-900 dark:text-slate-100 cursor-pointer hover:text-blue-600 flex items-center gap-2"
                         >
                           {student.full_name}
+                          {(isSubscriptionExpired(student) || (student.subscription_model === 'credit' && (student.remaining_sessions || 0) <= 0)) && (
+                            <AlertCircle size={12} className="text-rose-500" />
+                          )}
                         </p>
                         <p className="text-[10px] text-blue-500 font-bold">{student.course_type}</p>
+                        {student.subscription_model === 'credit' && (
+                          <p className={cn(
+                            "text-[10px] font-black",
+                            (student.remaining_sessions || 0) <= 1 ? "text-rose-500" : "text-emerald-600"
+                          )}>
+                            الرصيد: {student.remaining_sessions || 0}
+                          </p>
+                        )}
+                        {student.subscription_model === 'rolling' && student.subscription_end_date && (
+                          <p className="text-[9px] text-slate-400">
+                             ينتهي: {new Date(student.subscription_end_date).toLocaleDateString('ar-EG')}
+                          </p>
+                        )}
                       </td>
                       <td className="px-6 py-3">
                         <span className="text-xs text-slate-500">{student.level}</span>

@@ -25,9 +25,30 @@
         "medical_notes": { "type": "string" },
         "registration_date": { "type": "string" },
         "loyalty_points": { "type": "number" },
-        "assigned_coach_id": { "type": "string" }
+        "assigned_coach_id": { "type": "string" },
+        "course_id": { "type": "string", "description": "Linked course cycle ID" },
+        "subscription_model": { "type": "string", "enum": ["monthly", "credit", "rolling"] },
+        "remaining_sessions": { "type": "number" },
+        "subscription_start_date": { "type": "string" },
+        "subscription_end_date": { "type": "string" },
+        "first_session_date": { "type": "string" }
       },
       "required": ["full_name", "phone"]
+    },
+    "CourseCycle": {
+      "title": "CourseCycle",
+      "description": "Training cycle with dates",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "course_type": { "type": "string" },
+        "start_date": { "type": "string" },
+        "end_date": { "type": "string" },
+        "estimated_cost": { "type": "number" },
+        "status": { "type": "string", "enum": ["نشط", "مكتمل", "قادم"] },
+        "coach_id": { "type": "string" }
+      },
+      "required": ["name", "course_type", "start_date", "end_date", "estimated_cost"]
     },
     "StudentEvaluation": {
       "title": "StudentEvaluation",
@@ -185,6 +206,10 @@
     "/coach_attendance/{id}": {
       "schema": "CoachAttendance",
       "description": "Coach attendance records"
+    },
+    "/courses/{id}": {
+      "schema": "CourseCycle",
+      "description": "Course cycle records"
     },
     "/settings/app_config": {
       "schema": "AcademyConfig",

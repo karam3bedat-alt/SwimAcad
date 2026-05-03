@@ -19,7 +19,8 @@ import {
   Search,
   Bell,
   Languages,
-  Settings
+  Settings,
+  Layout
 } from 'lucide-react';
 import { auth } from '../firebase';
 import { signOut } from 'firebase/auth';
@@ -43,6 +44,7 @@ export function Sidebar() {
     { name: t('sessions'), path: '/sessions', icon: CalendarDays, roles: ['admin'] },
     { name: t('bookings'), path: '/bookings', icon: BookOpenCheck, roles: ['admin', 'coach'] },
     { name: t('attendance'), path: '/attendance', icon: ClipboardCheck, roles: ['admin', 'coach'] },
+    { name: t('courses'), path: '/courses', icon: Layout, roles: ['admin'] },
     { name: t('payments'), path: '/payments', icon: CreditCard, roles: ['admin'] },
     { name: t('notifications'), path: '/notifications', icon: Bell, roles: ['admin'] },
     { name: t('reports'), path: '/reports', icon: BarChart3, roles: ['admin'] },
