@@ -29,9 +29,10 @@ import {
   Star
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { cn } from '../lib/utils';
+import { cn, exportToExcel } from '../lib/utils';
 import { Modal } from './Modal';
 import { useAuth } from '../AuthContext';
+import { format, isWithinInterval } from 'date-fns';
 
 export const PaymentManager: React.FC = () => {
   const { isAdmin } = useAuth();
@@ -47,6 +48,9 @@ export const PaymentManager: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState(
     new Date().toLocaleString('ar-EG', { month: 'long', year: 'numeric' })
   );
+  const [isCustomRange, setIsCustomRange] = useState(false);
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
   const [activeTab, setActiveTab] = useState<'overview' | 'pending' | 'paid' | 'history' | 'auto'>('overview');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -79,13 +83,26 @@ export const PaymentManager: React.FC = () => {
     if (!students) return [];
     
     return students.map(student => {
-      // Find all payments for this student in the selected month
+      // Find all payments for this student in the selected month/range
       const studentPayments = payments?.filter(p => {
         if (!p || !p.date) return false;
+        if (p.student_id !== student.id) return false;
+
         const pDate = new Date(p.date);
+
+        if (isCustomRange && customStartDate && customEndDate) {
+          try {
+            const start = new Date(customStartDate);
+            const end = new Date(customEndDate);
+            end.setHours(23, 59, 59, 999);
+            return pDate >= start && pDate <= end;
+          } catch (e) {
+            return false;
+          }
+        }
+        
         const pMonthStr = pDate?.toLocaleString('ar-EG', { month: 'long', year: 'numeric' }) || '';
-        // Also check if payment has a specific 'month' field that matches
-        return p.student_id === student.id && (pMonthStr === selectedMonth || p.month === selectedMonth);
+        return pMonthStr === selectedMonth || p.month === selectedMonth;
       }) || [];
       
       const totalPaid = studentPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
@@ -96,8 +113,9 @@ export const PaymentManager: React.FC = () => {
       const hasLoyaltyDiscount = (student.loyalty_points || 0) >= 100;
       const requiredAmount = hasLoyaltyDiscount ? Math.max(0, baseAmount - 100) : baseAmount;
 
-      const dueDate = new Date();
-      dueDate.setDate(1);
+      const dueDate = isCustomRange && customStartDate ? new Date(customStartDate) : new Date();
+      if (!isCustomRange) dueDate.setDate(1);
+      
       const today = new Date();
       const daysOverdue = totalPaid >= requiredAmount ? 0 : 
         Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -113,11 +131,12 @@ export const PaymentManager: React.FC = () => {
         remainingAmount: Math.max(0, requiredAmount - totalPaid),
         status,
         paymentDate: studentPayments.length > 0 ? studentPayments[studentPayments.length - 1].date : undefined,
+        paymentMethod: studentPayments.length > 0 ? studentPayments[studentPayments.length - 1].method : undefined,
         daysOverdue: Math.max(0, daysOverdue),
         receiptNumber: studentPayments.length > 0 ? studentPayments[studentPayments.length - 1].id : undefined
       };
     });
-  }, [students, payments, selectedMonth, currentConfig.coursePrices]);
+  }, [students, payments, selectedMonth, currentConfig.coursePrices, isCustomRange, customStartDate, customEndDate]);
 
   const stats = useMemo(() => {
     const total = studentsWithStatus.length;
@@ -180,14 +199,25 @@ export const PaymentManager: React.FC = () => {
 
   // Export report
   const exportReport = () => {
-    const currentPayments = payments?.filter(p => {
-      const pDate = new Date(p.date);
-      const pMonthStr = pDate.toLocaleString('ar-EG', { month: 'long', year: 'numeric' });
-      return pMonthStr === selectedMonth || p.month === selectedMonth;
-    }) || [];
-    
-    generateDetailedFinancialReport(currentPayments, students || [], selectedMonth);
-    toast.success('تم إنشاء التقرير المالي بنجاح');
+    const reportData = studentsWithStatus.map(s => ({
+      'اسم الطالب': s.full_name,
+      'رقم الهاتف': s.phone || s.parent_phone || '-',
+      'المستوى': s.level || '-',
+      'نوع الدورة': s.course_type || '-',
+      'المبلغ المطلوب (₪)': s.requiredAmount,
+      'المبلغ المدفوع (₪)': s.totalPaid,
+      'المتبقي (₪)': s.remainingAmount,
+      'الحالة': s.status === 'confirmed' ? 'تم الدفع' : s.status === 'partial' ? 'دفع جزئي' : 'معلق',
+      'تاريخ آخر دفعة': s.paymentDate ? new Date(s.paymentDate).toLocaleDateString('ar-EG') : '-',
+      'طريقة الدفع': s.paymentMethod || '-'
+    }));
+
+    const periodLabel = isCustomRange 
+      ? `الفترة_من_${customStartDate}_إلى_${customEndDate}`
+      : selectedMonth.replace(' ', '_');
+
+    exportToExcel(reportData, `تقرير_تحصيل_${periodLabel}`);
+    toast.success('تم تصدير تقرير التحصيل بصيغة Excel');
   };
 
   if (studentsLoading || paymentsLoading || settingsLoading) {
@@ -217,7 +247,7 @@ export const PaymentManager: React.FC = () => {
           <p className="text-slate-500 dark:text-slate-400">متابعة الاشتراكات الشهرية وتنبيه المتأخرين.</p>
         </div>
         
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {isAdmin && (
             <button
               onClick={() => setIsSettingsOpen(true)}
@@ -228,26 +258,56 @@ export const PaymentManager: React.FC = () => {
             </button>
           )}
 
-          <select
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+          <button 
+            onClick={() => setIsCustomRange(!isCustomRange)}
+            className={cn(
+              "px-4 py-2 rounded-xl text-xs font-bold transition-all border",
+              isCustomRange 
+                ? "bg-blue-600 text-white border-blue-600" 
+                : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800"
+            )}
           >
-            {arabicMonths.map(m => {
-              const year = new Date().getFullYear();
-              const monthYear = `${m} ${year}`;
-              return (
-                <option key={monthYear} value={monthYear}>{monthYear}</option>
-              );
-            })}
-          </select>
+            {isCustomRange ? 'إلغاء المخصص' : 'تاريخ مخصص'}
+          </button>
+
+          {!isCustomRange ? (
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+            >
+              {arabicMonths.map(m => {
+                const year = new Date().getFullYear();
+                const monthYear = `${m} ${year}`;
+                return (
+                  <option key={monthYear} value={monthYear}>{monthYear}</option>
+                );
+              })}
+            </select>
+          ) : (
+            <div className="flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1">
+              <input 
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                className="bg-transparent border-none outline-none text-xs font-bold text-slate-700 dark:text-slate-200 p-1"
+              />
+              <span className="text-slate-400 text-xs">إلى</span>
+              <input 
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                className="bg-transparent border-none outline-none text-xs font-bold text-slate-700 dark:text-slate-200 p-1"
+              />
+            </div>
+          )}
           
           <button
             onClick={exportReport}
-            className="bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 dark:shadow-none"
+            className="bg-emerald-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 dark:shadow-none"
           >
             <Download size={18} />
-            تصدير تقرير
+            تصدير Excel
           </button>
         </div>
       </div>

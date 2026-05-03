@@ -22,6 +22,9 @@ export default function Reports() {
 
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
+  const [isCustomRange, setIsCustomRange] = useState(false);
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
 
   const months = [
     { value: '01', label: 'يناير' },
@@ -46,6 +49,13 @@ export default function Reports() {
       const dateStr = item.date || item.check_in || item.registration_date;
       const date = new Date(dateStr);
       
+      if (isCustomRange && customStartDate && customEndDate) {
+        const start = new Date(customStartDate);
+        const end = new Date(customEndDate);
+        end.setHours(23, 59, 59, 999);
+        return date >= start && date <= end;
+      }
+
       const monthMatch = selectedMonth ? (date.getMonth() + 1).toString().padStart(2, '0') === selectedMonth : true;
       const yearMatch = selectedYear ? date.getFullYear().toString() === selectedYear : true;
       
@@ -60,7 +70,12 @@ export default function Reports() {
 
   const handleExportDetailedFinancial = () => {
     const monthLabel = months.find(m => m.value === selectedMonth)?.label || '';
-    const reportMonth = selectedMonth ? `${monthLabel} ${selectedYear}` : 'تقرير عام';
+    let reportMonth = selectedMonth ? `${monthLabel} ${selectedYear}` : 'تقرير عام';
+    
+    if (isCustomRange && customStartDate && customEndDate) {
+      reportMonth = `من ${customStartDate} إلى ${customEndDate}`;
+    }
+    
     generateDetailedFinancialReport(filteredPayments, students, reportMonth);
   };
 
@@ -99,7 +114,11 @@ export default function Reports() {
 
   const handleExportPayments = () => {
     const monthLabel = months.find(m => m.value === selectedMonth)?.label || 'كل الأشهر';
-    const reportMonth = selectedMonth ? `${monthLabel} ${selectedYear}` : 'تقرير عام';
+    let reportMonth = selectedMonth ? `${monthLabel} ${selectedYear}` : 'تقرير عام';
+    
+    if (isCustomRange && customStartDate && customEndDate) {
+      reportMonth = `من ${customStartDate} إلى ${customEndDate}`;
+    }
     
     // Group payments by student to provide a detailed summary per student as requested
     const reportData = students.filter(s => s.status !== 'غير نشط').map(student => {
@@ -155,32 +174,68 @@ export default function Reports() {
         </div>
         
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm">
-            <Calendar size={18} className="text-slate-400" />
-            <select 
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-transparent border-none outline-none text-sm font-bold text-slate-700"
-            >
-              <option value="">كل الأشهر</option>
-              {months.map(m => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
-            </select>
-          </div>
-          
-          <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm">
-            <Search size={18} className="text-slate-400" />
-            <select 
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(e.target.value)}
-              className="bg-transparent border-none outline-none text-sm font-bold text-slate-700"
-            >
-              {years.map(y => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
-          </div>
+          <button 
+            onClick={() => setIsCustomRange(!isCustomRange)}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
+              isCustomRange 
+                ? 'bg-blue-600 text-white' 
+                : 'bg-white text-slate-600 border border-slate-200'
+            }`}
+          >
+            {isCustomRange ? 'إلغاء التاريخ المخصص' : 'تاريخ مخصص'}
+          </button>
+
+          {!isCustomRange ? (
+            <>
+              <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm">
+                <Calendar size={18} className="text-slate-400" />
+                <select 
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="bg-transparent border-none outline-none text-sm font-bold text-slate-700"
+                >
+                  <option value="">كل الأشهر</option>
+                  {months.map(m => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm">
+                <Search size={18} className="text-slate-400" />
+                <select 
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  className="bg-transparent border-none outline-none text-sm font-bold text-slate-700"
+                >
+                  {years.map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm">
+                <span className="text-[10px] text-slate-400 font-bold">من</span>
+                <input 
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="bg-transparent border-none outline-none text-xs font-bold text-slate-700"
+                />
+              </div>
+              <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm">
+                <span className="text-[10px] text-slate-400 font-bold">إلى</span>
+                <input 
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="bg-transparent border-none outline-none text-xs font-bold text-slate-700"
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

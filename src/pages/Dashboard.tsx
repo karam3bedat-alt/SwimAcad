@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StatCard } from '../components/Card';
 import { Users, Calendar, CreditCard, Clock, TrendingUp, Loader2, AlertCircle, Award } from 'lucide-react';
 import { useDashboardStats } from '../hooks/useDashboard';
@@ -22,6 +22,56 @@ export default function Dashboard() {
   const { data: coachAttendance = [] } = useCoachAttendance(isCoach() ? user?.uid : undefined);
   const checkInMutation = useCoachCheckIn();
   const checkOutMutation = useCoachCheckOut();
+
+  // Calculate Real Trends
+  const trends = useMemo(() => {
+    if (!students.length || !payments.length) return {};
+
+    const now = new Date();
+    const thisMonth = now.getMonth();
+    const thisYear = now.getFullYear();
+    const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
+    const lastMonthYear = thisMonth === 0 ? thisYear - 1 : thisYear;
+
+    // 1. Student Growth
+    const studentsThisMonth = students.filter(s => {
+      if (!s.registration_date) return false;
+      const d = new Date(s.registration_date);
+      return d.getMonth() === thisMonth && d.getFullYear() === thisYear;
+    }).length;
+    
+    const studentsLastMonth = students.filter(s => {
+      if (!s.registration_date) return false;
+      const d = new Date(s.registration_date);
+      return d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear;
+    }).length;
+
+    const studentTrend = studentsLastMonth === 0 ? (studentsThisMonth > 0 ? 100 : 0) : Math.round(((studentsThisMonth - studentsLastMonth) / studentsLastMonth) * 100);
+
+    // 2. Revenue Growth
+    const revenueThisMonth = payments.filter(p => {
+      const d = new Date(p.date || '');
+      return d.getMonth() === thisMonth && d.getFullYear() === thisYear;
+    }).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+    const revenueLastMonth = payments.filter(p => {
+      const d = new Date(p.date || '');
+      return d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear;
+    }).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+    const revenueTrend = revenueLastMonth === 0 ? (revenueThisMonth > 0 ? 100 : 0) : Math.round(((revenueThisMonth - revenueLastMonth) / revenueLastMonth) * 100);
+
+    // 3. Status Distribution (Retention)
+    const activeStudents = students.filter(s => s.status !== 'غير نشط').length;
+    const retentionRate = students.length > 0 ? Math.round((activeStudents / students.length) * 100) : 0;
+
+    return {
+      students: { value: `${Math.abs(studentTrend)}%`, isUp: studentTrend >= 0 },
+      revenue: { value: `${Math.abs(revenueTrend)}%`, isUp: revenueTrend >= 0 },
+      trainers: { value: 'استقرار', isUp: true },
+      sessions: { value: 'نشط', isUp: true }
+    };
+  }, [students, payments]);
 
   const currentCoach = trainers.find(t => t.email === user?.email || t.id === user?.uid);
 
@@ -211,28 +261,28 @@ export default function Dashboard() {
           title={t('total_students')} 
           value={stats?.studentsCount || 0} 
           icon={<Users size={24} />} 
-          trend={{ value: '12%', isUp: true }}
+          trend={trends.students}
           color="blue"
         />
         <StatCard 
           title={t('total_trainers')} 
           value={stats?.trainersCount || 0} 
           icon={<Clock size={24} />} 
-          trend={{ value: '5%', isUp: true }}
+          trend={trends.trainers}
           color="orange"
         />
         <StatCard 
           title={t('total_revenue')} 
           value={`${stats?.totalRevenue?.toLocaleString() || 0} ₪`} 
           icon={<CreditCard size={24} />} 
-          trend={{ value: '8%', isUp: true }}
+          trend={trends.revenue}
           color="green"
         />
         <StatCard 
           title={t('scheduled_sessions')} 
           value={stats?.sessionsCount || 0} 
           icon={<TrendingUp size={24} />} 
-          trend={{ value: '3%', isUp: true }}
+          trend={trends.sessions}
           color="purple"
         />
       </div>
@@ -241,7 +291,12 @@ export default function Dashboard() {
 
       {/* Smart Insights Section */}
       <div className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
-        <SmartInsights students={students} payments={payments} />
+        <SmartInsights 
+          students={students} 
+          payments={payments} 
+          bookings={(stats as any)?.recentBookings || []} 
+          trainers={trainers} 
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

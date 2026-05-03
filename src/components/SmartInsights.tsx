@@ -11,11 +11,14 @@ import {
   Gift,
   MessageCircle,
   ExternalLink,
-  ChevronLeft
+  ChevronLeft,
+  BookOpen,
+  PieChart,
+  UserX
 } from 'lucide-react';
-import { Student, Payment } from '../types';
+import { Student, Payment, Booking, Coach } from '../types';
 import { useI18n } from '../lib/LanguageContext';
-import { format, isSameDay, addDays, isWithinInterval, subDays } from 'date-fns';
+import { format, isSameDay, addDays, isWithinInterval, subDays, parseISO } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { Modal } from './Modal';
 import { createWhatsAppLink, whatsappTemplates } from '../utils/whatsapp';
@@ -24,7 +27,7 @@ interface InsightItem {
   id: string;
   title: string;
   desc: string;
-  type?: 'warning' | 'info';
+  type?: 'warning' | 'info' | 'success';
   icon?: any;
   color?: string;
   data?: any[];
@@ -34,9 +37,11 @@ interface InsightItem {
 interface SmartInsightsProps {
   students: Student[];
   payments: Payment[];
+  bookings?: Booking[];
+  trainers?: Coach[];
 }
 
-export function SmartInsights({ students, payments }: SmartInsightsProps) {
+export function SmartInsights({ students, payments, bookings = [], trainers = [] }: SmartInsightsProps) {
   const { t, language } = useI18n();
   const [selectedInsight, setSelectedInsight] = useState<InsightItem | null>(null);
 
@@ -47,7 +52,7 @@ export function SmartInsights({ students, payments }: SmartInsightsProps) {
     const today = new Date();
     const nextWeek = addDays(today, 7);
 
-    // 1. Birthdays
+    // 1. Birthdays (Existing)
     const upcomingBirthdays = students.filter(s => {
       if (!s.birth_date) return false;
       const bDate = new Date(s.birth_date);
@@ -63,124 +68,115 @@ export function SmartInsights({ students, payments }: SmartInsightsProps) {
       warnings.push({
         id: 'birthdays',
         title: 'أعياد ميلاد قادمة',
-        desc: `لديك ${upcomingBirthdays.length} طلاب سيحتفلون بأعياد ميلادهم هذا الأسبوع.`,
+        desc: `لديك ${upcomingBirthdays.length} طلاب سيحتفلون بأعياد ميلادهم هذا الأسبوع. اهتم بمشاركتهم الفرحة!`,
         type: 'info',
         data: upcomingBirthdays,
         category: 'warning'
       });
     }
 
-    // 2. Unpaid / Dormant Students
-    const last35Days = subDays(today, 35);
-    const dormantStudents = students.filter(s => {
-      const studentPayments = payments.filter(p => p.student_id === s.id);
-      if (studentPayments.length === 0) return true;
-      const lastPayment = new Date(studentPayments[0].date);
-      return lastPayment < last35Days;
-    });
+    // 2. Low Credits Warning (New for Credit System)
+    const lowCreditStudents = students.filter(s => 
+      s.subscription_model === 'credit' && 
+      (s.remaining_sessions || 0) <= 2 &&
+      s.status !== 'غير نشط'
+    );
 
-    if (dormantStudents.length > 0) {
+    if (lowCreditStudents.length > 0) {
       warnings.push({
-        id: 'dormant',
-        title: 'طلاب لم يجددوا الاشتراك',
-        desc: `هناك ${dormantStudents.length} طلاب لم يتم تسجيل دفعات لهم منذ أكثر من شهر. قد يحتاجون إلى تذكير.`,
+        id: 'low_credits',
+        title: 'طلاب شارف رصيدهم على الانتهاء',
+        desc: `هناك ${lowCreditStudents.length} طلاب متبقي لهم حصتان أو أقل. تواصل معهم للتجديد.`,
         type: 'warning',
-        data: dormantStudents,
+        data: lowCreditStudents,
         category: 'warning'
       });
     }
 
-    // 3. Family Discounts (Income Retention Suggestion)
-    const familyGroups: Record<string, Student[]> = {};
-    students.forEach(s => {
-      const phone = s.parent_phone || s.phone;
-      // Extract what might be a "Family Name" (last word of full name)
-      const names = s.full_name?.trim().split(' ') || [];
-      const lastName = names.length > 1 ? names[names.length - 1] : '';
-      const parentName = s.parent_name?.trim() || '';
-      
-      // Create a unique key based on Phone, Parent Name, and semi-inferred Family Name
-      // Normalizing to lowercase/trimmed to improve matching
-      const key = `${phone}_${parentName.toLowerCase()}_${lastName.toLowerCase()}`.replace(/\s+/g, '');
-      
-      if (phone && parentName) {
-        if (!familyGroups[key]) familyGroups[key] = [];
-        familyGroups[key].push(s);
+    // 3. Attendance Dormant (Inactive Participation)
+    const last14Days = subDays(today, 14);
+    const inactiveAttendees = students.filter(s => {
+      if (s.status === 'غير نشط') return false;
+      const studentBookings = bookings.filter(b => b.student_id === s.id && b.status === 'حضر');
+      if (studentBookings.length === 0) {
+        // If registered more than 14 days ago and no attendance
+        const regDate = s.registration_date ? parseISO(s.registration_date) : today;
+        return regDate < last14Days;
       }
+      // Last attendance check
+      const lastBooking = studentBookings.sort((a, b) => 
+        parseISO(b.date).getTime() - parseISO(a.date).getTime()
+      )[0];
+      return parseISO(lastBooking.date) < last14Days;
     });
 
-    const families = Object.values(familyGroups).filter(g => g.length > 1);
-    if (families.length > 0) {
+    if (inactiveAttendees.length > 0) {
+      warnings.push({
+        id: 'attendance_gap',
+        title: 'غياب متكرر (أكثر من أسبوعين)',
+        desc: `${inactiveAttendees.length} طلاب لم يحضروا أي حصة منذ 14 يوماً. قد يكون هناك سبب للغياب.`,
+        type: 'warning',
+        data: inactiveAttendees,
+        category: 'warning'
+      });
+    }
+
+    // 4. Revenue Insights - Enrollment Optimization
+    const courseTypeStats: Record<string, number> = {};
+    students.forEach(s => {
+      const type = s.course_type || 'غير محدد';
+      courseTypeStats[type] = (courseTypeStats[type] || 0) + 1;
+    });
+
+    const topCourse = Object.entries(courseTypeStats).sort((a, b) => b[1] - a[1])[0];
+    if (topCourse) {
       suggestions.push({
-        id: 'family_discount',
-        title: 'تفعيل خصومات عائلية',
-        desc: `وجدنا ${families.length} عائلات لديها أكثر من طفل. عرض خصم عائلي يحسن الاستمرارية.`,
-        icon: Users,
-        color: 'text-blue-600 bg-blue-50',
-        data: families,
+        id: 'course_optimization',
+        title: `توسعة دورات ${topCourse[0]}`,
+        desc: `تحظى دورات "${topCourse[0]}" بأعلى إقبال (${topCourse[1]} طالب). فكر في فتح شعب جديدة لزيادة الدخل.`,
+        icon: PieChart,
+        color: 'text-purple-600 bg-purple-50',
         category: 'suggestion'
       });
     }
 
-    // 4. Private Lessons Upsell (Revenue growth)
-    const beginners = students.filter(s => s.level === 'مبتدئ' || s.level === 'Level 1');
-    if (beginners.length > 5) {
-      suggestions.push({
-        id: 'private_lessons',
-        title: 'عرض حصص خاصة للمبتدئين',
-        desc: `لديك ${beginners.length} طلاب في المستوى المبتدئ. تقديم حصص (Private) يزيد الدخل.`,
-        icon: TrendingUp,
-        color: 'text-emerald-600 bg-emerald-50',
-        data: beginners,
-        category: 'suggestion'
-      });
-    }
-
-    // 5. Special Occasion Marketing
-    if (today.getMonth() === 4 || today.getMonth() === 5) { // May/June - Summer prep
-      suggestions.push({
-        id: 'summer_campaign',
-        title: 'حملة الصيف المبكرة',
-        desc: 'اقترب فصل الصيف! ابدأ حملة تسويقية للدورات المكثفة لجذب مشتركين جدد.',
-        icon: Zap,
-        color: 'text-amber-600 bg-amber-50',
-        category: 'suggestion'
-      });
-    }
-
-    // 6. New Students Performance
-    const currentMonth = today.getMonth();
-    const currentYear = today.getFullYear();
-    const newStudentsThisMonth = students.filter(s => {
-      if (!s.registration_date) return false;
-      const regDate = new Date(s.registration_date);
-      return regDate.getMonth() === currentMonth && regDate.getFullYear() === currentYear;
-    });
-
-    const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-    const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-    const newStudentsLastMonth = students.filter(s => {
-      if (!s.registration_date) return false;
-      const regDate = new Date(s.registration_date);
-      return regDate.getMonth() === lastMonth && regDate.getFullYear() === lastMonthYear;
-    });
-
-    const isGrowing = newStudentsThisMonth.length >= newStudentsLastMonth.length;
-    
+    // 5. New Features Upsell
     suggestions.push({
-      id: 'new_students_growth',
-      title: 'تحليل نمو الطلاب الجدد',
-      desc: isGrowing 
-        ? `أداء ممتاز! تم تسجيل ${newStudentsThisMonth.length} طلاب جدد هذا الشهر، وهو أفضل من الشهر الماضي (${newStudentsLastMonth.length}).`
-        : `تنبيه: سجلت ${newStudentsThisMonth.length} طلاب جدد هذا الشهر، بينما كان الشهر الماضي ${newStudentsLastMonth.length}. جرب تكثيف الإعلانات.`,
-      icon: TrendingUp,
-      color: isGrowing ? 'text-blue-600 bg-blue-50' : 'text-orange-600 bg-orange-50',
-      data: newStudentsThisMonth,
+      id: 'subscription_migration',
+      title: 'التحويل لنظام الحصص (Auto-Billing)',
+      desc: 'الطلاب الذين يدفعون مبالغ ثابتة قد يفضلون نظام الحصص (Credit). هذا يحسن التدفق المالي المسبق.',
+      icon: DollarSign,
+      color: 'text-amber-600 bg-amber-50',
       category: 'suggestion'
     });
 
+    // 6. Trainer Utilization & Rewards
+    const activeTrainers = trainers.filter(t => t.status !== 'غير نشط');
+    activeTrainers.forEach(trainer => {
+      const assignedStudents = students.filter(s => s.assigned_coach_id === trainer.id).length;
+      if (assignedStudents > 15) {
+        suggestions.push({
+          id: `trainer_reward_${trainer.id}`,
+          title: `مكافأة للكابتن ${trainer.name}`,
+          desc: `يقوم الكابتن ${trainer.name} بتدريب ${assignedStudents} طالب. تقديراً لجهوده، نوصي بصرف مكافأة أداء.`,
+          icon: Gift,
+          color: 'text-rose-600 bg-rose-50',
+          category: 'suggestion'
+        });
+      } else if (assignedStudents < 5 && students.length > 20) {
+        suggestions.push({
+          id: `trainer_load_${trainer.id}`,
+          title: `توزيع طلاب للكابتن ${trainer.name}`,
+          desc: `لدى الكابتن ${trainer.name} عدد قليل من الطلاب (${assignedStudents}). يمكن تحويل طلاب جدد إليه لتخفيف الضغط عن الآخرين.`,
+          icon: Users,
+          color: 'text-blue-600 bg-blue-50',
+          category: 'suggestion'
+        });
+      }
+    });
+
     return { warnings, suggestions };
-  }, [students, payments]);
+  }, [students, payments, bookings, trainers]);
 
   const renderDetailContent = () => {
     if (!selectedInsight) return null;
@@ -188,7 +184,7 @@ export function SmartInsights({ students, payments }: SmartInsightsProps) {
     switch (selectedInsight.id) {
       case 'birthdays':
         return (
-          <div className="space-y-4">
+          <div className="space-y-4 font-['Cairo']">
             <p className="text-sm text-slate-500 mb-4">احتفل مع أبطالك الصغار وعزز علاقتك بالأهالي:</p>
             <div className="space-y-3">
               {selectedInsight.data?.map((student: Student) => (
@@ -217,25 +213,25 @@ export function SmartInsights({ students, payments }: SmartInsightsProps) {
           </div>
         );
 
-      case 'dormant':
+      case 'low_credits':
         return (
-          <div className="space-y-4">
-            <p className="text-sm text-slate-500 mb-4">هؤلاء الطلاب انقطعوا عن الدفع منذ فترة، تواصل معهم للاطمئنان عليهم:</p>
+          <div className="space-y-4 font-['Cairo']">
+            <p className="text-sm text-slate-500 mb-4">هؤلاء الطلاب يفضلون نظام الحصص ولكن رصيدهم شارف على الانتهاء:</p>
             <div className="space-y-3">
               {selectedInsight.data?.map((student: Student) => (
-                <div key={student.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                <div key={student.id} className="flex items-center justify-between p-3 bg-rose-50 dark:bg-rose-900/10 rounded-xl border border-rose-100 dark:border-rose-900/20">
                   <div>
                     <p className="font-bold text-slate-900 dark:text-slate-100">{student.full_name}</p>
-                    <p className="text-xs text-slate-500">{student.phone || student.parent_phone}</p>
+                    <p className="text-xs text-rose-600 font-bold">باقي: {student.remaining_sessions || 0} حصص</p>
                   </div>
                   <a 
-                    href={createWhatsAppLink(student.parent_phone || student.phone || '', `مرحباً، نود الاطمئنان على استمرار ${student.full_name} معنا في الأكاديمية. هل لديكم أي استفسارات؟`)}
+                    href={createWhatsAppLink(student.parent_phone || student.phone || '', `مرحباً، نود تذكيركم بأن رصيد حصص ${student.full_name} في الأكاديمية قارب على الانتهاء (المتبقي ${student.remaining_sessions} حصص). بإمكانكم التجديد في الموعد القادم.`)}
                     target="_blank"
                     rel="noreferrer"
-                    className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2 text-xs font-bold"
+                    className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-xs font-bold"
                   >
                     <MessageCircle size={14} />
-                    متابعة
+                    تنبيه التجديد
                   </a>
                 </div>
               ))}
@@ -243,68 +239,76 @@ export function SmartInsights({ students, payments }: SmartInsightsProps) {
           </div>
         );
 
-      case 'family_discount':
+      case 'attendance_gap':
         return (
-          <div className="space-y-4">
-            <p className="text-sm text-slate-500">العائلات التي لديها أكثر من طفل هي كنز للأكاديمية. خصم 10% للطفل الثاني يحفزهم على البقاء:</p>
-            <div className="space-y-3">
-              {selectedInsight.data?.map((family: Student[], idx: number) => (
-                <div key={idx} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
-                  <div className="flex justify-between items-center mb-2">
-                    <p className="font-bold text-blue-600 text-sm">عائلة: {family[0].parent_name || 'ولي أمر'}</p>
-                    <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold">{family.length} أطفال</span>
-                  </div>
-                  <div className="space-y-1">
-                    {family.map(s => (
-                      <p key={s.id} className="text-xs text-slate-600 dark:text-slate-400">• {s.full_name}</p>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-
-      case 'private_lessons':
-        return (
-          <div className="space-y-4">
-            <p className="text-sm text-slate-500">طلاب المستوى المبتدئ والتمهيدي يستفيدون بشكل أسرع من الحصص الفردية. يمكنك تقديم باقة من 4 حصص خاصة بسعر مميز:</p>
-            <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
-              {selectedInsight.data?.map((student: Student) => (
-                <div key={student.id} className="text-xs font-bold text-slate-700 dark:text-slate-300 p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800">
-                  {student.full_name} ({student.level})
-                </div>
-              ))}
-            </div>
-            <div className="p-3 bg-emerald-50 text-emerald-800 rounded-xl text-xs font-bold border border-emerald-100">
-              💡 نصيحة: التواصل مع الأهالي هاتفياً لهذه العروض يحقق نتائج أفضل من الرسائل النصية.
-            </div>
-          </div>
-        );
-
-      case 'new_students_growth':
-        return (
-          <div className="space-y-4">
-            <p className="text-sm text-slate-500">تفاصيل الطلاب الجدد المسجلين هذا الشهر:</p>
+          <div className="space-y-4 font-['Cairo']">
+            <p className="text-sm text-slate-500 mb-4">توقف هؤلاء الطلاب عن الحضور منذ أكثر من 14 يوماً. المتابعة الشخصية تمنع الانسحاب:</p>
             <div className="space-y-3">
               {selectedInsight.data?.map((student: Student) => (
-                <div key={student.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                <div key={student.id} className="flex items-center justify-between p-3 bg-orange-50 dark:bg-orange-900/10 rounded-xl border border-orange-100 dark:border-orange-900/20">
                   <div>
                     <p className="font-bold text-slate-900 dark:text-slate-100">{student.full_name}</p>
-                    <p className="text-xs text-slate-500">{student.registration_date ? format(new Date(student.registration_date), 'dd/MM/yyyy') : ''}</p>
+                    <p className="text-xs text-orange-600">غائب لفترة طويلة</p>
                   </div>
-                  <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-lg text-[10px] font-bold">{student.level}</span>
+                  <a 
+                    href={createWhatsAppLink(student.parent_phone || student.phone || '', `مرحباً، لاحظنا غياب ${student.full_name} عن التدريبات مؤخراً. نأمل أن يكون المانع خيراً، ونحن بانتظار عودته للمسبح!`)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-2 text-xs font-bold"
+                  >
+                    <UserX size={14} />
+                    اطمئنان
+                  </a>
                 </div>
               ))}
-              {selectedInsight.data?.length === 0 && (
-                <p className="text-center text-slate-400 py-4 italic">لم يتم تسجيل أي طلاب جدد حتى الآن هذا الشهر.</p>
-              )}
             </div>
+          </div>
+        );
+
+      case 'course_optimization':
+        return (
+          <div className="space-y-4 font-['Cairo']">
+            <h5 className="font-black text-slate-900 dark:text-white">تحليل الطلب على الدورات</h5>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              بناءً على البيانات، نوصي بالإجراءات التالية لزيادة الدخل:
+            </p>
+            <ul className="space-y-3">
+              <li className="flex gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-900/10">
+                <div className="shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold">1</div>
+                <p className="text-xs font-medium leading-relaxed">
+                  فتح مجموعة جديدة (Group) في أوقات الذروة لهذه الدورة لجذب الطلاب القادمين من قائمة الانتظار.
+                </p>
+              </li>
+              <li className="flex gap-3 p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-100 dark:border-emerald-900/10">
+                <div className="shrink-0 w-6 h-6 bg-emerald-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold">2</div>
+                <p className="text-xs font-medium leading-relaxed">
+                  رفع سعر الإشتراك الشهري لهذه الفئة بنسبة 5-10% نظراً لارتفاع الطلب، مع عرض "باقة سنوية" مخفضة.
+                </p>
+              </li>
+            </ul>
+          </div>
+        );
+
+      case 'subscription_migration':
+        return (
+          <div className="space-y-4 font-['Cairo']">
+            <div className="p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/20 rounded-2xl">
+              <h5 className="font-bold text-amber-900 dark:text-amber-400 mb-2">لماذا نظام الحصص؟</h5>
+              <ul className="text-xs space-y-2 text-amber-800 dark:text-amber-500 list-disc pr-4">
+                <li>تحصيل المال مسبقاً يحسن السيولة النقدية (Cash Flow).</li>
+                <li>تجنب خسارة المال في أيام العطل أو غياب الطالب غير المبرر.</li>
+                <li>سهولة في إدارة الحضور والغياب تقنياً.</li>
+              </ul>
+            </div>
+            <p className="text-sm font-bold text-slate-700 dark:text-slate-300">مقترح التنفيذ:</p>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              قم بتقديم "عرض تحويل" للطلاب الحاليين: باقة 10 حصص بسعر 12 حصة، لتشجيعهم على تجربة النظام الجديد.
+            </p>
           </div>
         );
 
       default:
-        return <p className="text-slate-600">{selectedInsight.desc}</p>;
+        return <p className="text-slate-600 font-['Cairo']">{selectedInsight.desc}</p>;
     }
   };
 
