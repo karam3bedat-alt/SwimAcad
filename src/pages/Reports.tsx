@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileDown, BarChart3, Users, CreditCard, Clock, Calendar, Search } from 'lucide-react';
+import { FileDown, BarChart3, Users, CreditCard, Clock, Calendar, Search, DollarSign, TrendingUp } from 'lucide-react';
 import { exportToExcel } from '../lib/utils';
 import { Card } from '../components/Card';
 import { useStudents } from '../hooks/useStudents';
@@ -291,6 +291,122 @@ export default function Reports() {
           </div>
         </Card>
       </div>
+
+      <Card title="تحليل أداء الأكاديمية (النمو والتراجع)">
+        <div className="space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {(() => {
+              const currentMonthInt = selectedMonth ? parseInt(selectedMonth) - 1 : new Date().getMonth();
+              const currentYearInt = parseInt(selectedYear);
+              
+              const prevMonthInt = currentMonthInt === 0 ? 11 : currentMonthInt - 1;
+              const prevYearInt = currentMonthInt === 0 ? currentYearInt - 1 : currentYearInt;
+
+              const getRevenue = (m: number, y: number) => payments
+                .filter(p => {
+                  const d = new Date(p.date);
+                  return d.getMonth() === m && d.getFullYear() === y;
+                })
+                .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+              const getNewStudents = (m: number, y: number) => students
+                .filter(s => {
+                  if (!s.registration_date) return false;
+                  const d = new Date(s.registration_date);
+                  return d.getMonth() === m && d.getFullYear() === y;
+                }).length;
+
+              const currRevenue = getRevenue(currentMonthInt, currentYearInt);
+              const prevRevenue = getRevenue(prevMonthInt, prevYearInt);
+              const revGrowth = prevRevenue === 0 ? 100 : ((currRevenue - prevRevenue) / prevRevenue) * 100;
+
+              const currNew = getNewStudents(currentMonthInt, currentYearInt);
+              const prevNew = getNewStudents(prevMonthInt, prevYearInt);
+              const studentGrowth = prevNew === 0 ? 100 : ((currNew - prevNew) / prevNew) * 100;
+
+              return (
+                <>
+                  <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
+                        <DollarSign size={20} />
+                      </div>
+                      <span className={`text-xs font-black px-2 py-1 rounded-lg ${revGrowth >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                        {revGrowth >= 0 ? '+' : ''}{revGrowth.toFixed(1)}%
+                      </span>
+                    </div>
+                    <p className="text-sm font-bold text-slate-500 mb-1">نمو الإيرادات</p>
+                    <p className="text-2xl font-black text-slate-900 dark:text-white">{currRevenue.toLocaleString()} ₪</p>
+                    <p className="text-[10px] text-slate-400 mt-2">مقارنة بـ {prevRevenue.toLocaleString()} ₪ الشهر الماضي</p>
+                  </div>
+
+                  <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+                        <Users size={20} />
+                      </div>
+                      <span className={`text-xs font-black px-2 py-1 rounded-lg ${studentGrowth >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                        {studentGrowth >= 0 ? '+' : ''}{studentGrowth.toFixed(1)}%
+                      </span>
+                    </div>
+                    <p className="text-sm font-bold text-slate-500 mb-1">الطلاب الجدد</p>
+                    <p className="text-2xl font-black text-slate-900 dark:text-white">{currNew} طالب</p>
+                    <p className="text-[10px] text-slate-400 mt-2">مقارنة بـ {prevNew} الشهر الماضي</p>
+                  </div>
+
+                  <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="w-10 h-10 bg-orange-50 text-orange-600 rounded-xl flex items-center justify-center">
+                        <BarChart3 size={20} />
+                      </div>
+                    </div>
+                    <p className="text-sm font-bold text-slate-500 mb-1">معدل الاستمرارية</p>
+                    <p className="text-2xl font-black text-slate-900 dark:text-white">
+                      {((students.filter(s => s.status === 'نشط').length / students.length) * 100).toFixed(1)}%
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-2">نسبة الطلاب النشطين حالياً</p>
+                  </div>
+
+                  <div className="p-6 bg-blue-600 rounded-3xl shadow-lg shadow-blue-200">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="w-10 h-10 bg-white/10 text-white rounded-xl flex items-center justify-center">
+                        <TrendingUp size={20} />
+                      </div>
+                    </div>
+                    <p className="text-sm font-bold text-white/80 mb-1">صافي الأداء</p>
+                    <p className="text-2xl font-black text-white">
+                      {revGrowth > 0 && studentGrowth > 0 ? 'تقدم مستمر' : (revGrowth < 0 && studentGrowth < 0 ? 'تراجع ملحوظ' : 'أداء مستقر')}
+                    </p>
+                    <p className="text-[10px] text-white/60 mt-2">بناءً على معايير الشهر الحالي</p>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+
+          <div className="p-6 bg-slate-50 dark:bg-slate-800/30 rounded-3xl border border-slate-100 dark:border-slate-800">
+             <h4 className="font-bold text-slate-900 dark:text-white mb-4">توصيات لمراقبة الأداء</h4>
+             <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <li className="flex items-start gap-3 text-sm text-slate-600 dark:text-slate-400">
+                  <span className="w-2 h-2 mt-1.5 bg-blue-500 rounded-full shrink-0" />
+                  <span>تراجع أعداد الطلاب الجدد يعني ضرورة مراجعة خطة التسويق أو الإعلانات الممولة.</span>
+                </li>
+                <li className="flex items-start gap-3 text-sm text-slate-600 dark:text-slate-400">
+                  <span className="w-2 h-2 mt-1.5 bg-emerald-500 rounded-full shrink-0" />
+                  <span>زيادة الإيرادات مع ثبات أعداد الطلاب تشير إلى نجاح استراتيجية رفع الأسعار أو الدورات الخاصة.</span>
+                </li>
+                <li className="flex items-start gap-3 text-sm text-slate-600 dark:text-slate-400">
+                  <span className="w-2 h-2 mt-1.5 bg-orange-500 rounded-full shrink-0" />
+                  <span>انخفاض معدل الاستمرارية يتطلب تحسين جودة التدريب أو بيئة الأكاديمية.</span>
+                </li>
+                <li className="flex items-start gap-3 text-sm text-slate-600 dark:text-slate-400">
+                  <span className="w-2 h-2 mt-1.5 bg-indigo-500 rounded-full shrink-0" />
+                  <span>المراقبة الشهرية تمنع الانهيار المفاجئ في الدخل بفضل التدخل المبكر.</span>
+                </li>
+             </ul>
+          </div>
+        </div>
+      </Card>
 
       <Card title="ملخص الأداء">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

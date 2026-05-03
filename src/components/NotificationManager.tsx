@@ -14,9 +14,15 @@ export const NotificationManager: React.FC = () => {
   const { data: settings } = useSettings();
   
   const [currentMonth, setCurrentMonth] = useState(
-    new Date().toLocaleString('ar-SA', { month: 'long' })
+    new Date().toLocaleString('ar-EG', { month: 'long', year: 'numeric' })
   );
   
+  // Arabic Months
+  const arabicMonths = [
+    'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+    'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+  ];
+
   const [overdueList, setOverdueList] = useState<{ student: any; daysOverdue: number; amount: number; originalAmount?: number; dueDate: string }[]>([]);
   const [absenceAlerts, setAbsenceAlerts] = useState<{ student: any; consecutiveDays: number }[]>([]);
   const [scheduledNotifications, setScheduledNotifications] = useState<ScheduledNotification[]>([]);
@@ -107,9 +113,13 @@ export const NotificationManager: React.FC = () => {
           onChange={(e) => setCurrentMonth(e.target.value)}
           className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-blue-500"
         >
-          {['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 
-            'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
-            .map(m => <option key={m} value={m}>{m}</option>)}
+          {arabicMonths.map(m => {
+            const year = new Date().getFullYear();
+            const monthYear = `${m} ${year}`;
+            return (
+              <option key={monthYear} value={monthYear}>{monthYear}</option>
+            );
+          })}
         </select>
       </div>
 
@@ -209,7 +219,14 @@ export const NotificationManager: React.FC = () => {
                         {notification.subject}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-slate-700 dark:text-slate-300 font-medium">{notification.amount} ₪</td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col">
+                        <span className="text-slate-700 dark:text-slate-300 font-black">{notification.amount} ₪</span>
+                        {notification.originalAmount && notification.originalAmount > notification.amount && (
+                          <span className="text-[10px] text-slate-400 line-through">من {notification.originalAmount} ₪</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-6 py-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                         notification.urgency === 'high' 

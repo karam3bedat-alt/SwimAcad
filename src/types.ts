@@ -54,6 +54,7 @@ export interface Coach {
   bio?: string;
   join_date?: string;
   salary?: number;
+  lesson_rate?: number;
   photo_url?: string;
 }
 
@@ -65,7 +66,7 @@ export interface CoachAttendance {
   check_in: string; // ISO timestamp
   check_out?: string; // ISO timestamp
   duration_minutes?: number;
-  status: 'حاضر' | 'متأخر' | 'مبكر';
+  status: 'حاضر' | 'متأخر' | 'مبكر' | 'غائب';
   lessons_count?: number;
 }
 
@@ -106,6 +107,7 @@ export interface Payment {
   month?: string;
   method: string;
   course_type?: string;
+  required_amount?: number;
   notes?: string;
   received_by?: string;
   loyalty_points_used?: number;

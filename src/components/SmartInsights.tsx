@@ -148,6 +148,37 @@ export function SmartInsights({ students, payments }: SmartInsightsProps) {
       });
     }
 
+    // 6. New Students Performance
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+    const newStudentsThisMonth = students.filter(s => {
+      if (!s.registration_date) return false;
+      const regDate = new Date(s.registration_date);
+      return regDate.getMonth() === currentMonth && regDate.getFullYear() === currentYear;
+    });
+
+    const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+    const newStudentsLastMonth = students.filter(s => {
+      if (!s.registration_date) return false;
+      const regDate = new Date(s.registration_date);
+      return regDate.getMonth() === lastMonth && regDate.getFullYear() === lastMonthYear;
+    });
+
+    const isGrowing = newStudentsThisMonth.length >= newStudentsLastMonth.length;
+    
+    suggestions.push({
+      id: 'new_students_growth',
+      title: 'تحليل نمو الطلاب الجدد',
+      desc: isGrowing 
+        ? `أداء ممتاز! تم تسجيل ${newStudentsThisMonth.length} طلاب جدد هذا الشهر، وهو أفضل من الشهر الماضي (${newStudentsLastMonth.length}).`
+        : `تنبيه: سجلت ${newStudentsThisMonth.length} طلاب جدد هذا الشهر، بينما كان الشهر الماضي ${newStudentsLastMonth.length}. جرب تكثيف الإعلانات.`,
+      icon: TrendingUp,
+      color: isGrowing ? 'text-blue-600 bg-blue-50' : 'text-orange-600 bg-orange-50',
+      data: newStudentsThisMonth,
+      category: 'suggestion'
+    });
+
     return { warnings, suggestions };
   }, [students, payments]);
 
@@ -247,6 +278,27 @@ export function SmartInsights({ students, payments }: SmartInsightsProps) {
             </div>
             <div className="p-3 bg-emerald-50 text-emerald-800 rounded-xl text-xs font-bold border border-emerald-100">
               💡 نصيحة: التواصل مع الأهالي هاتفياً لهذه العروض يحقق نتائج أفضل من الرسائل النصية.
+            </div>
+          </div>
+        );
+
+      case 'new_students_growth':
+        return (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-500">تفاصيل الطلاب الجدد المسجلين هذا الشهر:</p>
+            <div className="space-y-3">
+              {selectedInsight.data?.map((student: Student) => (
+                <div key={student.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                  <div>
+                    <p className="font-bold text-slate-900 dark:text-slate-100">{student.full_name}</p>
+                    <p className="text-xs text-slate-500">{student.registration_date ? format(new Date(student.registration_date), 'dd/MM/yyyy') : ''}</p>
+                  </div>
+                  <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-lg text-[10px] font-bold">{student.level}</span>
+                </div>
+              ))}
+              {selectedInsight.data?.length === 0 && (
+                <p className="text-center text-slate-400 py-4 italic">لم يتم تسجيل أي طلاب جدد حتى الآن هذا الشهر.</p>
+              )}
             </div>
           </div>
         );

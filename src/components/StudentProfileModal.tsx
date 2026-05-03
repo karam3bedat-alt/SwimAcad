@@ -82,11 +82,31 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
               ) : (
                 studentPayments.map(p => (
                   <div key={p.id} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-3 rounded-xl flex justify-between items-center shadow-sm">
-                    <div>
-                      <p className="font-bold text-slate-900 dark:text-slate-100">{p.amount.toLocaleString()} ₪</p>
-                      <p className="text-[10px] text-slate-500">{p.month || '-'} • {p.method}</p>
+                    <div className="flex-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <span className="font-black text-slate-900 dark:text-slate-100">{p.amount.toLocaleString()} ₪</span>
+                        {p.required_amount && (
+                          <span className="text-[10px] text-slate-400">
+                             من أصل {p.required_amount.toLocaleString()} ₪
+                          </span>
+                        )}
+                        {p.course_type && (
+                          <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-[10px] font-bold">
+                            {p.course_type}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <p className="text-[10px] font-bold text-slate-500">{p.month || '-'} • {p.method}</p>
+                        {p.required_amount && p.required_amount > p.amount && (
+                          <span className="text-[10px] text-rose-600 font-bold bg-rose-50 dark:bg-rose-900/20 px-1.5 rounded">
+                            متبقي: {p.required_amount - p.amount} ₪
+                          </span>
+                        )}
+                      </div>
+                      {p.notes && <p className="text-[10px] text-slate-400 mt-1 italic leading-tight">{p.notes}</p>}
                     </div>
-                    <p className="text-xs text-slate-400">{format(new Date(p.date), 'yyyy-MM-dd')}</p>
+                    <p className="text-xs text-slate-400 font-medium shrink-0">{format(new Date(p.date), 'yyyy-MM-dd')}</p>
                   </div>
                 ))
               )}

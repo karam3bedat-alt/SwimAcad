@@ -449,6 +449,26 @@ export const coachAttendanceService = {
     }
   },
 
+  async markAbsent(coachId: string, coachName: string): Promise<CoachAttendance> {
+    const path = 'coach_attendance';
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const attendanceData: Omit<CoachAttendance, 'id'> = {
+        coach_id: coachId,
+        coach_name: coachName,
+        date: today,
+        check_in: new Date().toISOString(),
+        status: 'غائب'
+      };
+
+      const docRef = await addDoc(collection(db, path), attendanceData);
+      return { id: docRef.id, ...attendanceData };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, path);
+      throw error;
+    }
+  },
+
   async checkOut(id: string, coachId: string, lessonsCount?: number): Promise<void> {
     const path = `coach_attendance/${id}`;
     try {
@@ -479,6 +499,20 @@ export const coachAttendanceService = {
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
+      throw error;
+    }
+  },
+
+  async addManual(data: Omit<CoachAttendance, 'id'>): Promise<string> {
+    const path = 'coach_attendance';
+    try {
+      const docRef = await addDoc(collection(db, path), {
+        ...data,
+        createdAt: new Date().toISOString()
+      });
+      return docRef.id;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, path);
       throw error;
     }
   }

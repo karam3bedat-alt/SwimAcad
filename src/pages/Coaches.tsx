@@ -35,6 +35,7 @@ export default function Coaches() {
         email: (formData.get('email') as string) || '',
         specialty: (formData.get('specialty') as string) || '',
         salary: Number(formData.get('salary')) || 0,
+        lesson_rate: Number(formData.get('lesson_rate')) || 0,
         join_date: (formData.get('join_date') as string) || new Date().toISOString().split('T')[0],
         bio: (formData.get('bio') as string) || '',
         status: (isEdit ? selectedCoach.status : 'نشط') as 'نشط' | 'غير نشط'
@@ -114,10 +115,10 @@ export default function Coaches() {
                 <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-600">
                   <Award size={24} />
                 </div>
-                <div>
-                  <h3 className="font-bold text-slate-900 text-lg">{coach.name || coach.trainer_name}</h3>
+                <Link to={`/coaches/${coach.id}`} className="hover:opacity-80 transition-opacity">
+                  <h3 className="font-bold text-slate-900 text-lg hover:text-blue-600 transition-colors">{coach.name || coach.trainer_name}</h3>
                   <p className="text-sm text-blue-600 font-medium">{coach.specialty || 'مدرب سباحة'}</p>
-                </div>
+                </Link>
               </div>
                 <div className="flex flex-col items-end gap-2">
                 <div className="px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-600">
@@ -232,11 +233,20 @@ export default function Coaches() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700">الراتب الشهري</label>
+              <label className="text-sm font-bold text-slate-700">الراتب الأساسي</label>
               <input 
                 name="salary" 
                 type="number"
                 defaultValue={selectedCoach?.salary || ''}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700">سعر الدرس الإضافي</label>
+              <input 
+                name="lesson_rate" 
+                type="number"
+                defaultValue={selectedCoach?.lesson_rate || ''}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>

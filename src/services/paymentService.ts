@@ -41,23 +41,29 @@ export const generatePaymentMessage = (studentData: any, amount: number, month: 
   const config = customConfig || PAYMENT_CONFIG;
   const { bitPhone, payboxPhone, bankAccount, bankName, academyName, academyPhone } = config;
   
+  const originalAmount = studentData.requiredAmount || studentData.originalAmount;
+  const remainingAmount = studentData.remainingAmount || amount;
+  const isPartial = originalAmount && remainingAmount && remainingAmount < originalAmount;
+
   const templates: Record<PaymentMessageType, string> = {
     due: `مرحباً ${studentData.parent_name || 'ولي الأمر العزيز'} 👋
 
 💰 دفعة اشتراك ${studentData.full_name} لشهر ${month}
-المبلغ: *${amount} ₪*
+${isPartial 
+  ? `قيمة الاشتراك الأصلي: *${originalAmount} ₪*\n✅ تم دفع: *${originalAmount - remainingAmount} ₪*\n⚠️ المتبقي للسداد: *${remainingAmount} ₪*` 
+  : `المبلغ المطلوب: *${remainingAmount} ₪*`}
 
 خيارات الدفع المتاحة:
 
 1️⃣ *Bit (بيط):*
    افتح تطبيق Bit
    أرسل إلى: ${bitPhone}
-   المبلغ: ${amount} ₪
+   المبلغ: ${remainingAmount} ₪
    الملاحظة: ${studentData.full_name} - ${month}
 
 2️⃣ *PayBox (بي بوكس):*
    أرسل إلى: ${payboxPhone}
-   المبلغ: ${amount} ₪
+   المبلغ: ${remainingAmount} ₪
 
 3️⃣ *تحويل بنكي:*
    البنك: ${bankName}
@@ -80,7 +86,9 @@ export const generatePaymentMessage = (studentData: any, amount: number, month: 
 
 لم يتم استلام دفعة ${studentData.full_name} لشهر ${month} حتى الآن.
 
-💰 المبلغ: *${amount} ₪*
+${isPartial 
+  ? `💰 قيمة الاشتراك: *${originalAmount} ₪*\n✅ المدفوع سابقاً: *${originalAmount - remainingAmount} ₪*\n⚠️ المتبقي: *${remainingAmount} ₪*` 
+  : `💰 المبلغ المطلوب: *${remainingAmount} ₪*`}
 ⏰ يرجى السداد في أقرب وقت ممكن
 
 للدفع السريع:
@@ -98,7 +106,9 @@ export const generatePaymentMessage = (studentData: any, amount: number, month: 
 
 تذكير لطيف بالدفعة الشهرية لـ ${studentData.full_name}.
 
-💰 المبلغ: *${amount} ₪*
+${isPartial 
+  ? `💰 قيمة الاشتراك: *${originalAmount} ₪*\n⚠️ المتبقي: *${remainingAmount} ₪*` 
+  : `💰 المبلغ المطلوب: *${remainingAmount} ₪*`}
 📅 الشهر: ${month}
 
 للدفع السهل والسريع عبر Bit:

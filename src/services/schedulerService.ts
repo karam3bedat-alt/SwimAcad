@@ -35,15 +35,25 @@ class NotificationScheduler {
     const currentYear = new Date().getFullYear();
 
     students?.forEach(student => {
+      // Skip inactive students
+      if (student.status === 'غير نشط') return;
+
       // Get all payments for this student for the target month
+      // Normalize month check: some payments might have "Month Year" or just "Month"
       const studentPayments = payments?.filter(p => {
-        return p.student_id === student.id && p.month === currentMonthName;
+        if (!p.student_id || p.student_id !== student.id) return false;
+        if (!p.month) return false;
+        
+        // Match if p.month contains the currentMonthName (e.g. "مايو 2024" contains "مايو")
+        // or if they are exactly equal
+        return p.month.includes(currentMonthName) || currentMonthName.includes(p.month);
       });
       
-      const totalPaid = studentPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-      const originalAmount = student.custom_fee || (coursePrices && coursePrices[student.course_type]) || this.calculateMonthlyFee(student.level);
+      const totalPaid = studentPayments?.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) || 0;
+      const originalAmount = student.custom_fee || (coursePrices && student.course_type && coursePrices[student.course_type]) || this.calculateMonthlyFee(student.level);
       const remainingAmount = Math.max(0, originalAmount - totalPaid);
 
+      // Only include if there's still a remaining amount to be paid
       if (remainingAmount > 0) {
         const dueDate = new Date(currentYear, targetMonth, 1); // First of the month
         

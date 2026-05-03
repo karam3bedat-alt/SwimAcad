@@ -449,6 +449,7 @@ export const PaymentManager: React.FC = () => {
                 method: method,
                 month: selectedMonth,
                 course_type: courseType,
+                required_amount: confirmingPayment.requiredAmount,
                 date: new Date().toISOString(),
                 notes: usedDiscount ? 'تم استخدام خصم الولاء (100 شيقل)' : ''
               });

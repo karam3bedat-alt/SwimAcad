@@ -34,38 +34,48 @@ interface TemplateData {
 
 // Smart Message Templates
 export const messageTemplates: Record<NotificationType, (data: TemplateData) => { subject: string; message: string; urgency: 'low' | 'normal' | 'high'; sendBeforeDays: number | null }> = {
-  [NotificationTypes.PAYMENT_DUE]: (data) => ({
-    subject: 'تذكير بالدفع',
-    message: `مرحباً ${data.parentName} 👋\n\n` +
-      `نود تذكيركم بدفع اشتراك ${data.studentName} للشهر الحالي (${data.month}).\n\n` +
-      `💰 قيمة الاشتراك: *${data.originalAmount || data.amount} شيكل*\n` +
-      (data.remainingAmount && data.remainingAmount > 0 && data.remainingAmount !== (data.originalAmount || data.amount)
-        ? `⚠️ المبلغ المتبقي: *${data.remainingAmount} شيكل*\n`
-        : `💰 المبلغ المطلوب: *${data.amount} شيكل*\n`) +
-      `📅 تاريخ الاستحقاق: ${data.dueDate}\n\n` +
-      `للدفع السريع:\n${data.paymentLink}\n\n` +
-      `شكراً لتعاونكم 🙏\n` +
-      `Sharks Olympic Academy 🏊‍♂️`,
-    urgency: 'normal',
-    sendBeforeDays: 3
-  }),
+  [NotificationTypes.PAYMENT_DUE]: (data) => {
+    const isPartial = data.originalAmount && data.remainingAmount && data.remainingAmount < data.originalAmount;
+    
+    return {
+      subject: 'تذكير بالدفع',
+      message: `مرحباً ${data.parentName} 👋\n\n` +
+        `نود تذكيركم بدفع اشتراك ${data.studentName} لشهر ${data.month}.\n\n` +
+        `💰 قيمة الاشتراك: *${data.originalAmount || data.amount} شيكل*\n` +
+        (isPartial 
+          ? `✅ المبلغ المدفوع سابقاً: *${(data.originalAmount || 0) - (data.remainingAmount || 0)} شيكل*\n` +
+            `⚠️ المبلغ المتبقي للسداد: *${data.remainingAmount} شيكل*\n`
+          : `💰 المبلغ المطلوب: *${data.amount} شيكل*\n`) +
+        `📅 تاريخ الاستحقاق: ${data.dueDate}\n\n` +
+        `للدفع السريع:\n${data.paymentLink}\n\n` +
+        `شكراً لتعاونكم 🙏\n` +
+        `Sharks Olympic Academy 🏊‍♂️`,
+      urgency: 'normal',
+      sendBeforeDays: 3
+    };
+  },
 
-  [NotificationTypes.PAYMENT_OVERDUE]: (data) => ({
-    subject: 'تنبيه: دفعة متأخرة',
-    message: `مرحباً ${data.parentName} ⚠️\n\n` +
-      `نلفت انتباهكم أن دفع اشتراك ${data.studentName} للشهر ${data.month} *متأخر*.\n\n` +
-      `💰 قيمة الاشتراك: *${data.originalAmount || data.amount} شيكل*\n` +
-      (data.remainingAmount && data.remainingAmount > 0 && data.remainingAmount !== (data.originalAmount || data.amount)
-        ? `⚠️ المبلغ المتبقي: *${data.remainingAmount} شيكل*\n`
-        : `💰 المبلغ المطلوب: *${data.amount} شيكل*\n`) +
-      `⏰ أيام التأخير: ${data.daysOverdue} يوم\n\n` +
-      `للدفع الفوري:\n${data.paymentLink}\n\n` +
-      `للاستفسار: 052-5526570\n\n` +
-      `مع خالص التقدير،\n` +
-      `إدارة الأكاديمية 🏊‍♂️`,
-    urgency: 'high',
-    sendBeforeDays: 0
-  }),
+  [NotificationTypes.PAYMENT_OVERDUE]: (data) => {
+    const isPartial = data.originalAmount && data.remainingAmount && data.remainingAmount < data.originalAmount;
+    
+    return {
+      subject: 'تنبيه: دفعة متأخرة',
+      message: `مرحباً ${data.parentName} ⚠️\n\n` +
+        `نلفت انتباهكم أن دفع اشتراك ${data.studentName} لشهر ${data.month} *متأخر*.\n\n` +
+        `💰 قيمة الاشتراك: *${data.originalAmount || data.amount} شيكل*\n` +
+        (isPartial 
+          ? `✅ المبلغ المدفوع سابقاً: *${(data.originalAmount || 0) - (data.remainingAmount || 0)} شيكل*\n` +
+            `⚠️ المبلغ المتبقي للسداد: *${data.remainingAmount} شيكل*\n`
+          : `💰 المبلغ المطلوب: *${data.amount} شيكل*\n`) +
+        `⏰ أيام التأخير: ${data.daysOverdue} يوم\n\n` +
+        `للدفع الفوري:\n${data.paymentLink}\n\n` +
+        `للاستفسار: 052-5526570\n\n` +
+        `مع خالص التقدير،\n` +
+        `إدارة الأكاديمية 🏊‍♂️`,
+      urgency: 'high',
+      sendBeforeDays: 0
+    };
+  },
 
   [NotificationTypes.PAYMENT_CONFIRMED]: (data) => ({
     subject: 'تأكيد الدفع',

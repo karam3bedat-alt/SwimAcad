@@ -44,6 +44,17 @@ export const useCoachCheckIn = () => {
   });
 };
 
+export const useCoachMarkAbsent = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ coachId, coachName }: { coachId: string, coachName: string }) => 
+      coachAttendanceService.markAbsent(coachId, coachName),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['coachAttendance'] });
+    }
+  });
+};
+
 export const useCoachCheckOut = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -52,6 +63,16 @@ export const useCoachCheckOut = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['coachAttendance'] });
       queryClient.invalidateQueries({ queryKey: ['trainers'] });
+    }
+  });
+};
+
+export const useAddCoachAttendance = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Omit<CoachAttendance, 'id'>) => coachAttendanceService.addManual(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['coachAttendance'] });
     }
   });
 };

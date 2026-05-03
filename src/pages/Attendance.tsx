@@ -9,18 +9,22 @@ import {
   Download,
   Search,
   Cake,
-  Award
+  Award,
+  ChevronLeft,
+  CalendarDays,
+  FileSpreadsheet
 } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, exportToExcel } from '../lib/utils';
 import { toast } from 'react-hot-toast';
-import { useBookings, useUpdateBookingStatus, useAddBooking } from '../hooks/useBookings';
+import { useBookings, useUpdateBookingStatus, useAddBooking, useDeleteBooking } from '../hooks/useBookings';
 import { useStudents } from '../hooks/useStudents';
-import { useTrainers, useCoachAttendance, useCoachCheckIn, useCoachCheckOut } from '../hooks/useTrainers';
-import { generateAttendancePDF } from '../services/pdfService';
-import { format, isToday } from 'date-fns';
+import { useTrainers, useCoachAttendance, useCoachCheckIn, useCoachMarkAbsent, useCoachCheckOut, useAddCoachAttendance } from '../hooks/useTrainers';
+import { Modal } from '../components/Modal';
+import { format, isToday, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { useI18n } from '../lib/LanguageContext';
 import { useAuth } from '../AuthContext';
 import { scheduler } from '../services/schedulerService';
+import { CoachAttendance } from '../types';
 
 export default function Attendance() {
   const { t } = useI18n();
@@ -31,22 +35,45 @@ export default function Attendance() {
   const { data: coachAttendance = [] } = useCoachAttendance(isAdmin() ? undefined : user?.uid);
   
   const [showOnlyMyStudents, setShowOnlyMyStudents] = useState(isCoach());
+  const [activeTab, setActiveTab] = useState<'daily' | 'checksheet' | 'coaches'>(isCoach() ? 'daily' : 'checksheet');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCourse, setSelectedCourse] = useState<string>('');
+  const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), 'MM'));
+  const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
 
   const checkInMutation = useCoachCheckIn();
+  const markAbsentCoachMutation = useCoachMarkAbsent();
   const checkOutMutation = useCoachCheckOut();
+  const addCoachAttendanceMutation = useAddCoachAttendance();
 
   const updateStatusMutation = useUpdateBookingStatus();
   const addBookingMutation = useAddBooking();
-  const [activeTab, setActiveTab] = useState<'bookings' | 'daily' | 'checksheet' | 'coaches'>(isCoach() ? 'daily' : 'bookings');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [bulkStatus, setBulkStatus] = useState<Record<string, 'حضر' | 'غائب' | 'ملغي' | null>>({});
-  const [coachLessons, setCoachLessons] = useState<Record<string, number>>({});
+  const deleteBookingMutation = useDeleteBooking();
 
-  const filteredStudents = students.filter(s => {
+  const [coachLessons, setCoachLessons] = useState<Record<string, number>>({});
+  
+  // Details Modal States
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [selectedCoachId, setSelectedCoachId] = useState<string | null>(null);
+
+  const courses = [
+    'دورات عادية مع مواصلات فوق ال ٥ سنوات',
+    'دورات عادية بدون مواصلات فوق ال ٥ سنوات',
+    'دورات عادية مع مواصلات فوق ال ٥ سنوات (زبائن صيف)',
+    'دورات عادية بدون مواصلات فوق ال ٥ سنوات (زبائن صيف)',
+    'دورات نساء (بدون مواصلات)',
+    'دورات رجال (بدون مواصلات)',
+    'دورات خاصة لجميع الأعمار'
+  ];
+
+  const filteredStudents = [...students].filter(s => {
     const matchesSearch = s.full_name?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCoach = !showOnlyMyStudents || s.assigned_coach_id === user?.uid;
-    return matchesSearch && matchesCoach;
-  });
+    const matchesCourse = !selectedCourse || s.course_type === selectedCourse;
+    // More robust status check: treat anything that isn't explicitly "inactive" or "غير نشط" as active
+    const isActive = (s.status as any) !== 'غير نشط' && (s.status as any) !== 'inactive' && (s.status as any) !== 'مركز';
+    return matchesSearch && matchesCoach && matchesCourse && isActive;
+  }).sort((a, b) => (a.full_name || '').trim().localeCompare((b.full_name || '').trim(), 'ar'));
 
   const checkAbsenceAlert = async (studentId: string) => {
     const alerts = scheduler.detectConsecutiveAbsences(students, bookings);
@@ -75,49 +102,98 @@ export default function Attendance() {
     }
   };
 
-  const handleBulkSubmit = async () => {
-    const studentsToUpdate = Object.entries(bulkStatus).filter(([_, status]) => status !== null);
-    if (studentsToUpdate.length === 0) {
-      toast.error('لم يتم تحديد أي طالب');
-      return;
-    }
+  const handleStatusUpdate = async (studentId: string, status: 'حضر' | 'غائب' | null) => {
+    if (!status) return;
+    
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
 
-    const toastId = toast.loading('جاري تسجيل الحضور للجملة...');
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const existingBooking = (bookings || []).find(b => 
+      b.student_id === studentId && 
+      format(new Date(b.date), 'yyyy-MM-dd') === todayStr
+    );
+
+    const toastId = toast.loading(`جاري تسجيل ${status} لـ ${student.full_name}...`);
     try {
-      for (const [studentId, status] of studentsToUpdate) {
-        const student = students.find(s => s.id === studentId);
-        if (!student || !status) continue;
-
-        const todayStr = format(new Date(), 'yyyy-MM-dd');
-        const existingBooking = (bookings || []).find(b => 
-          b.student_id === studentId && 
-          format(new Date(b.date), 'yyyy-MM-dd') === todayStr
-        );
-
-        if (existingBooking) {
-          await updateStatusMutation.mutateAsync({ id: existingBooking.id, status: status as unknown as string });
-        } else if (status === 'حضر') {
-          await addBookingMutation.mutateAsync({
-            student_id: student.id,
-            student_name: student.full_name,
-            session_id: 'bulk',
-            date: new Date().toISOString(),
-            status: 'حضر',
-            session_day: format(new Date(), 'EEEE'),
-            session_time: format(new Date(), 'HH:mm')
-          });
+      if (existingBooking) {
+        if (existingBooking.status === status) {
+          // If already has this status, maybe delete? 
+          // For now just re-confirm
+          await updateStatusMutation.mutateAsync({ id: existingBooking.id, status });
+        } else {
+          await updateStatusMutation.mutateAsync({ id: existingBooking.id, status });
         }
-        
-        if (status === 'غائب') {
-          await checkAbsenceAlert(studentId);
-        }
+      } else {
+        await addBookingMutation.mutateAsync({
+          student_id: student.id,
+          student_name: student.full_name,
+          session_id: 'bulk',
+          date: new Date().toISOString(),
+          status: status as any,
+          session_day: format(new Date(), 'EEEE'),
+          session_time: format(new Date(), 'HH:mm')
+        });
       }
-      toast.success('تم تسجيل الحضور بنجاح', { id: toastId });
-      setBulkStatus({});
+
+      if (status === 'غائب') {
+        await checkAbsenceAlert(studentId);
+      }
+      toast.success(`${student.full_name}: تم التسجيل ${status}`, { id: toastId });
       refetchBookings();
     } catch (err) {
-      toast.error('فشل في تسجيل بعض البيانات', { id: toastId });
+      toast.error('فشل في تسجيل الحضور', { id: toastId });
     }
+  };
+
+  const handleExportAttendance = () => {
+    const monthFiltered = bookings.filter(b => {
+      const bDate = new Date(b.date);
+      const mMatch = selectedMonth ? (bDate.getMonth() + 1).toString().padStart(2, '0') === selectedMonth : true;
+      const yMatch = selectedYear ? bDate.getFullYear().toString() === selectedYear : true;
+      const student = students.find(s => s.id === b.student_id);
+      const cMatch = selectedCourse ? student?.course_type === selectedCourse : true;
+      return mMatch && yMatch && cMatch;
+    });
+
+    const data = monthFiltered.map(b => {
+      const student = students.find(s => s.id === b.student_id);
+      return {
+        'اسم الطالب': b.student_name,
+        'الدورة': student?.course_type || '-',
+        'المستوى': student?.level || '-',
+        'التاريخ': b.date ? format(new Date(b.date), 'yyyy-MM-dd') : '-',
+        'اليوم': b.session_day,
+        'الوقت': b.session_time,
+        'الحالة': b.status,
+        'المدرب': b.coach_name || b.trainer_name || '-'
+      };
+    });
+
+    const monthName = selectedMonth ? format(new Date(2024, parseInt(selectedMonth) - 1, 1), 'MMMM') : 'عام';
+    const fileName = `حضور_الطلاب_${selectedCourse || 'جميع_الدورات'}_${monthName}_${selectedYear}`;
+    exportToExcel(data, fileName);
+  };
+
+  const handleExportCoachAttendance = () => {
+    const monthFiltered = coachAttendance.filter(a => {
+      const aDate = new Date(a.date);
+      const mMatch = selectedMonth ? (aDate.getMonth() + 1).toString().padStart(2, '0') === selectedMonth : true;
+      const yMatch = selectedYear ? aDate.getFullYear().toString() === selectedYear : true;
+      return mMatch && yMatch;
+    });
+
+    const data = monthFiltered.map(a => ({
+      'اسم المدرب': a.coach_name,
+      'التاريخ': a.date,
+      'الدخول': a.check_in ? format(new Date(a.check_in), 'HH:mm') : '-',
+      'الخروج': a.check_out ? format(new Date(a.check_out), 'HH:mm') : '-',
+      'المدة (دقائق)': a.duration_minutes || 0,
+      'عدد الدروس': a.lessons_count || 0,
+      'الحالة': a.status
+    }));
+
+    exportToExcel(data, `سجل_حضور_المدربين_${selectedMonth}_${selectedYear}`);
   };
 
   const updateStatus = async (id: string, status: string, studentId?: string) => {
@@ -171,65 +247,32 @@ export default function Attendance() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{t('attendance')}</h2>
+          <h2 className="text-3xl font-black text-slate-900 dark:text-slate-100">{t('attendance')}</h2>
           <p className="text-slate-500 dark:text-slate-400">{t('attendance_status')}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button 
-            onClick={() => generateAttendancePDF(bookings)}
-            disabled={bookings.length === 0}
-            className="bg-emerald-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 disabled:opacity-50"
+            onClick={handleExportAttendance}
+            className="bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
           >
-            <Download size={20} />
-            <span>{t('export_pdf')}</span>
+            <FileSpreadsheet size={20} />
+            <span className="text-sm font-bold">تصدير حضور الطلاب (Excel)</span>
           </button>
+          {isAdmin() && (
+            <button 
+              onClick={handleExportCoachAttendance}
+              className="bg-emerald-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200"
+            >
+              <FileSpreadsheet size={20} />
+              <span className="text-sm font-bold">تصدير حضور المدربين (Excel)</span>
+            </button>
+          )}
         </div>
       </div>
 
       <div className="flex flex-col md:flex-row gap-4">
-        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-fit">
-          <button
-            onClick={() => setActiveTab('bookings')}
-            className={cn(
-              "px-6 py-2 rounded-lg text-sm font-bold transition-all",
-              activeTab === 'bookings' ? "bg-white dark:bg-slate-900 text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-            )}
-          >
-            {t('bookings')}
-          </button>
-          <button
-            onClick={() => setActiveTab('daily')}
-            className={cn(
-              "px-6 py-2 rounded-lg text-sm font-bold transition-all",
-              activeTab === 'daily' ? "bg-white dark:bg-slate-900 text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-            )}
-          >
-            {t('daily_attendance')}
-          </button>
-          <button
-            onClick={() => setActiveTab('checksheet')}
-            className={cn(
-              "px-6 py-2 rounded-lg text-sm font-bold transition-all",
-              activeTab === 'checksheet' ? "bg-white dark:bg-slate-900 text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-            )}
-          >
-            كشف الحضور (جملة)
-          </button>
-          {isAdmin() && (
-            <button
-              onClick={() => setActiveTab('coaches')}
-              className={cn(
-                "px-6 py-2 rounded-lg text-sm font-bold transition-all",
-                activeTab === 'coaches' ? "bg-white dark:bg-slate-900 text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-              )}
-            >
-              حضور المدربين
-            </button>
-          )}
-        </div>
-
         {isCoach() && (
           <button
             onClick={() => setShowOnlyMyStudents(!showOnlyMyStudents)}
@@ -245,7 +288,93 @@ export default function Attendance() {
           </button>
         )}
 
-        <div className="relative flex-1">
+        <div className="flex gap-2">
+          {activeTab === 'coaches' ? (
+            <button 
+              onClick={handleExportCoachAttendance}
+              className="bg-emerald-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200"
+            >
+              <FileSpreadsheet size={20} />
+              <span>تصدير Excel</span>
+            </button>
+          ) : (
+            <button 
+              onClick={handleExportAttendance}
+              className="bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
+            >
+              <FileSpreadsheet size={20} />
+              <span>تصدير Excel</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-col md:flex-row gap-4 items-center">
+        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-full md:w-fit overflow-x-auto">
+          <button
+            onClick={() => setActiveTab('bookings')}
+            className={cn(
+              "px-6 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap",
+              activeTab === 'bookings' ? "bg-white dark:bg-slate-900 text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            {t('bookings')}
+          </button>
+          <button
+            onClick={() => setActiveTab('daily')}
+            className={cn(
+              "px-6 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap",
+              activeTab === 'daily' ? "bg-white dark:bg-slate-900 text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            {t('daily_attendance')}
+          </button>
+          <button
+            onClick={() => setActiveTab('checksheet')}
+            className={cn(
+              "px-6 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap",
+              activeTab === 'checksheet' ? "bg-white dark:bg-slate-900 text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            كشف الحضور (جملة)
+          </button>
+          {isAdmin() && (
+            <button
+              onClick={() => setActiveTab('coaches')}
+              className={cn(
+                "px-6 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap",
+                activeTab === 'coaches' ? "bg-white dark:bg-slate-900 text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              حضور المدربين
+            </button>
+          )}
+        </div>
+
+        <div className="flex gap-2 w-full md:w-auto">
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 flex-1 md:w-32"
+          >
+            <option value="">كل الأشهر</option>
+            {[...Array(12)].map((_, i) => (
+              <option key={i} value={(i + 1).toString().padStart(2, '0')}>
+                {format(new Date(2024, i, 1), 'MMMM')}
+              </option>
+            ))}
+          </select>
+          <select
+            value={selectedCourse}
+            onChange={(e) => setSelectedCourse(e.target.value)}
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 flex-1 md:w-40"
+          >
+            <option value="">جميع الدورات</option>
+            {courses.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+
+        <div className="relative flex-1 w-full">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input 
             type="text" 
@@ -264,167 +393,22 @@ export default function Attendance() {
         </div>
       )}
 
-      {activeTab === 'bookings' ? (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-          {/* Table View - Hidden on Mobile */}
-          <div className="hidden lg:block overflow-x-auto">
-            <table className="w-full text-right">
-              <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-100 dark:border-slate-800">
-                <tr>
-                  <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">{t('students')}</th>
-                  <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">{t('sessions')}</th>
-                  <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">{t('date')}</th>
-                  <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">{t('status')}</th>
-                  <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">{t('actions')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                {(bookings || [])
-                  .filter(b => b.student_name?.toLowerCase().includes(searchTerm.toLowerCase()))
-                  .filter(b => !showOnlyMyStudents || students.find(s => s.id === b.student_id)?.assigned_coach_id === user?.uid)
-                  .map((booking) => (
-                  <tr key={booking.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-500">
-                          <User size={16} />
-                        </div>
-                        <p className="font-bold text-slate-900 dark:text-slate-100">{booking.student_name}</p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{booking.session_day} - {booking.coach_name || booking.trainer_name}</p>
-                        <p className="text-xs text-slate-500">{booking.session_time}</p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-sm text-slate-500">{booking.date ? new Date(booking.date).toLocaleDateString('ar-EG') : '-'}</p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={cn(
-                        "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                        booking.status === 'محجوز' && "bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400",
-                        booking.status === 'حضر' && "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400",
-                        booking.status === 'غائب' && "bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400",
-                        booking.status === 'ملغي' && "bg-slate-50 text-slate-500 dark:bg-slate-800/30 dark:text-slate-500",
-                      )}>
-                        {t(booking.status === 'محجوز' ? 'reserved' : 
-                           booking.status === 'حضر' ? 'present' : 
-                           booking.status === 'غائب' ? 'absent' : 'canceled')}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <button 
-                          onClick={() => updateStatus(booking.id, 'حضر', booking.student_id)}
-                          disabled={updateStatusMutation.isPending}
-                          title={t('mark_present')}
-                          className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors disabled:opacity-50"
-                        >
-                          <CheckCircle size={18} />
-                        </button>
-                        <button 
-                          onClick={() => updateStatus(booking.id, 'غائب', booking.student_id)}
-                          disabled={updateStatusMutation.isPending}
-                          title={t('mark_absent')}
-                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-50"
-                        >
-                          <XCircle size={18} />
-                        </button>
-                        <button 
-                          onClick={() => updateStatus(booking.id, 'ملغي', booking.student_id)}
-                          disabled={updateStatusMutation.isPending}
-                          title={t('cancel_booking')}
-                          className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
-                        >
-                          <Ban size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Card View - Visible on Mobile */}
-          <div className="lg:hidden divide-y divide-slate-100 dark:divide-slate-800">
-            {(bookings || [])
-              .filter(b => b.student_name?.toLowerCase().includes(searchTerm.toLowerCase()))
-              .filter(b => !showOnlyMyStudents || students.find(s => s.id === b.student_id)?.assigned_coach_id === user?.uid)
-              .map((booking) => (
-              <div key={booking.id} className="p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-lg flex items-center justify-center text-slate-500">
-                      <User size={20} />
-                    </div>
-                    <div>
-                      <p className="font-bold text-slate-900 dark:text-slate-100">{booking.student_name}</p>
-                      <p className="text-xs text-slate-500">{booking.session_time}</p>
-                    </div>
-                  </div>
-                  <span className={cn(
-                    "px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider",
-                    booking.status === 'محجوز' && "bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400",
-                    booking.status === 'حضر' && "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400",
-                    booking.status === 'غائب' && "bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400",
-                    booking.status === 'ملغي' && "bg-slate-50 text-slate-500 dark:bg-slate-800/30 dark:text-slate-500",
-                  )}>
-                    {t(booking.status === 'محجوز' ? 'reserved' : 
-                       booking.status === 'حضر' ? 'present' : 
-                       booking.status === 'غائب' ? 'absent' : 'canceled')}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-xs text-slate-500 border-t border-slate-50 dark:border-slate-800 pt-2">
-                  <span>{booking.session_day} - {booking.coach_name || booking.trainer_name}</span>
-                  <span>{booking.date ? new Date(booking.date).toLocaleDateString('ar-EG') : '-'}</span>
-                </div>
-                <div className="flex items-center gap-2 pt-1">
-                  <button 
-                    onClick={() => updateStatus(booking.id, 'حضر', booking.student_id)}
-                    className="flex-1 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-sm"
-                  >
-                    {t('present')}
-                  </button>
-                  <button 
-                    onClick={() => updateStatus(booking.id, 'غائب', booking.student_id)}
-                    className="flex-1 py-2 bg-rose-600 text-white rounded-xl text-xs font-bold shadow-sm"
-                  >
-                    {t('absent')}
-                  </button>
-                  <button 
-                    onClick={() => updateStatus(booking.id, 'ملغي', booking.student_id)}
-                    className="flex-1 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-bold"
-                  >
-                    {t('cancel')}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {bookings.length === 0 && !isLoadingBookings && (
-            <div className="p-12 text-center text-slate-500 dark:text-slate-400 italic">
-              {t('no_bookings')}
-            </div>
-          )}
-        </div>
-      ) : activeTab === 'daily' ? (
+      {activeTab === 'daily' ? (
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
           <div className="p-6 border-b border-slate-100 dark:border-slate-800">
             <h3 className="font-bold text-slate-900 dark:text-slate-100">{t('daily_attendance')} - {new Date().toLocaleDateString('ar-EG')}</h3>
-            <p className="text-sm text-slate-500">{t('manage_attendance_subtitle')}</p>
+            <p className="text-sm text-slate-500">سجل الحضور اليومي مرتب أبجدياً</p>
           </div>
           <div className="divide-y divide-slate-50 dark:divide-slate-800">
             {filteredStudents
               .map((student) => {
-                const isArrived = bookings.some(b => 
+                const todayStr = format(new Date(), 'yyyy-MM-dd');
+                const todayBooking = bookings.find(b => 
                   b.student_id === student.id && 
-                  format(new Date(b.date), 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') &&
-                  b.status === 'حضر'
+                  format(new Date(b.date), 'yyyy-MM-dd') === todayStr
                 );
+                const isArrived = todayBooking?.status === 'حضر';
+                const isAbsent = todayBooking?.status === 'غائب';
 
                 return (
                   <div key={student.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
@@ -434,7 +418,12 @@ export default function Attendance() {
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <p className="font-bold text-slate-900 dark:text-white">{student.full_name}</p>
+                          <p 
+                            onClick={() => setSelectedStudentId(student.id)}
+                            className="font-bold text-slate-900 dark:text-white cursor-pointer hover:text-blue-600"
+                          >
+                            {student.full_name}
+                          </p>
                           {isBirthdayToday(student.birth_date) && (
                             <span className="flex items-center gap-1 px-2 py-0.5 bg-pink-50 text-pink-600 rounded-full text-[10px] font-bold animate-pulse">
                               <Cake size={10} />
@@ -442,60 +431,34 @@ export default function Attendance() {
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-slate-500">{student.level}</p>
+                        <p className="text-xs text-slate-500">{student.course_type || student.level}</p>
                       </div>
                     </div>
                     
                     <div className="flex items-center gap-2">
-                      {isBirthdayToday(student.birth_date) && (
-                        <button
-                          onClick={() => {
-                            const message = t('birthday_greeting').replace('{name}', student.full_name);
-                            const phone = student.phone || student.parent_phone;
-                            if (phone) {
-                              window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`, '_blank');
-                            } else {
-                              toast.error(t('no_phone'));
-                            }
-                          }}
-                          className="p-2 text-pink-500 hover:bg-pink-50 rounded-xl transition-colors"
-                          title={t('send_birthday_greeting')}
-                        >
-                          <Cake size={20} />
-                        </button>
-                      )}
-
                       <button
-                        onClick={() => {
-                          const todayStr = new Date().toISOString().split('T')[0];
-                          const studentBooking = (bookings || []).find(b => 
-                            b.student_id === student.id && 
-                            format(new Date(b.date), 'yyyy-MM-dd') === todayStr
-                          );
-                          if (studentBooking) {
-                            updateStatus(studentBooking.id, 'حضر');
-                          } else {
-                            handleQuickCheckIn(student);
-                          }
-                        }}
+                        onClick={() => handleStatusUpdate(student.id, 'حضر')}
                         className={cn(
                           "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all",
                           isArrived 
-                            ? "bg-emerald-50 text-emerald-600 border border-emerald-100" 
-                            : "bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200"
+                            ? "bg-emerald-600 text-white shadow-lg shadow-emerald-200" 
+                            : "bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100"
                         )}
                       >
-                        {isArrived ? (
-                          <>
-                            <CheckCircle size={18} />
-                            {t('arrived')}
-                          </>
-                        ) : (
-                          <>
-                            <User size={18} />
-                            {t('mark_arrived')}
-                          </>
+                        <CheckCircle size={18} />
+                        حاضر
+                      </button>
+                      <button
+                        onClick={() => handleStatusUpdate(student.id, 'غائب')}
+                        className={cn(
+                          "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all",
+                          isAbsent 
+                            ? "bg-rose-600 text-white shadow-lg shadow-rose-200" 
+                            : "bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-100"
                         )}
+                      >
+                        <XCircle size={18} />
+                        غائب
                       </button>
                     </div>
                   </div>
@@ -531,12 +494,15 @@ export default function Attendance() {
               return (
                 <div key={trainer.id} className="relative group border border-slate-100 dark:border-slate-800 p-6 rounded-3xl bg-slate-50/50 dark:bg-slate-800/30 flex flex-col gap-4 transition-all hover:shadow-xl hover:shadow-blue-50">
                   <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center font-bold text-lg shadow-lg shadow-blue-200">
+                    <div 
+                      onClick={() => setSelectedCoachId(trainer.id)}
+                      className="flex items-center gap-3 cursor-pointer group"
+                    >
+                      <div className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center font-bold text-lg shadow-lg shadow-blue-200 group-hover:scale-110 transition-transform">
                         {trainer.name?.charAt(0)}
                       </div>
                       <div>
-                        <p className="font-bold text-slate-900 dark:text-white text-lg">{trainer.name}</p>
+                        <p className="font-bold text-slate-900 dark:text-white text-lg group-hover:text-blue-600 transition-colors">{trainer.name}</p>
                         <p className="text-xs text-blue-600 font-bold">{trainer.specialty}</p>
                       </div>
                     </div>
@@ -562,60 +528,69 @@ export default function Attendance() {
                       </div>
                     )}
                   </div>
-                  
-                  {isCheckedIn && (
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[10px] font-bold text-slate-500 pr-1">عدد الدروس (يدوي)</label>
-                      <input 
-                        type="number" 
-                        min="0"
-                        placeholder="0"
-                        value={coachLessons[trainer.id] || ''}
-                        onChange={(e) => setCoachLessons(prev => ({ ...prev, [trainer.id]: parseInt(e.target.value) || 0 }))}
-                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl py-2 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  )}
 
                   {!isCheckedOut ? (
-                    <button
-                      onClick={async () => {
-                        const toastId = toast.loading(t('processing'));
-                        try {
-                          if (!isCheckedIn) {
-                            await checkInMutation.mutateAsync({ coachId: trainer.id, coachName: trainer.name });
-                            toast.success(`تم تسجيل دخول: ${trainer.name}`, { id: toastId });
-                          } else if (todayEntry) {
-                            const lessonsCount = coachLessons[trainer.id] || 0;
-                            await checkOutMutation.mutateAsync({ 
-                              id: todayEntry.id, 
-                              coachId: trainer.id, 
-                              lessonsCount 
-                            });
-                            toast.success(`تم تسجيل خروج: ${trainer.name} (+${10 + (lessonsCount * 10)} نقاط)`, { id: toastId });
-                            // Clear input
-                            setCoachLessons(prev => {
-                              const next = { ...prev };
-                              delete next[trainer.id];
-                              return next;
-                            });
+                    <div className="flex gap-2">
+                      <button
+                        onClick={async () => {
+                          const toastId = toast.loading(t('processing'));
+                          try {
+                            if (!isCheckedIn) {
+                              await checkInMutation.mutateAsync({ coachId: trainer.id, coachName: trainer.name });
+                              toast.success(`تم تسجيل دخول: ${trainer.name}`, { id: toastId });
+                            } else if (todayEntry) {
+                              const lessonsCount = coachLessons[trainer.id] || 0;
+                              await checkOutMutation.mutateAsync({ 
+                                id: todayEntry.id, 
+                                coachId: trainer.id, 
+                                lessonsCount 
+                              });
+                              toast.success(`تم تسجيل خروج: ${trainer.name} (+${10 + (lessonsCount * 10)} نقاط)`, { id: toastId });
+                              setCoachLessons(prev => {
+                                const next = { ...prev };
+                                delete next[trainer.id];
+                                return next;
+                              });
+                            }
+                          } catch (err) {
+                            toast.error('فشل العملية', { id: toastId });
                           }
-                        } catch (err) {
-                          toast.error('فشل العملية', { id: toastId });
-                        }
-                      }}
-                      className={cn(
-                        "w-full py-4 rounded-2xl font-black text-sm transition-all shadow-lg active:scale-95",
-                        !isCheckedIn 
-                          ? "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-100" 
-                          : "bg-rose-500 text-white hover:bg-rose-600 shadow-rose-100"
+                        }}
+                        className={cn(
+                          "flex-1 py-4 rounded-2xl font-black text-sm transition-all shadow-lg active:scale-95",
+                          !isCheckedIn 
+                            ? "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-100" 
+                            : "bg-rose-500 text-white hover:bg-rose-600 shadow-rose-100"
+                        )}
+                      >
+                        {!isCheckedIn ? 'حاضر (دخول)' : 'إنهاء (خروج)'}
+                      </button>
+                      
+                      {!isCheckedIn && !todayEntry && (
+                        <button
+                          onClick={async () => {
+                            const toastId = toast.loading('جاري تسجيل غياب المدرب...');
+                            try {
+                              await markAbsentCoachMutation.mutateAsync({ coachId: trainer.id, coachName: trainer.name });
+                              toast.success(`تم تسجيل غياب: ${trainer.name}`, { id: toastId });
+                            } catch (err) {
+                              toast.error('فشل العملية', { id: toastId });
+                            }
+                          }}
+                          className="px-4 py-4 rounded-2xl font-black text-sm bg-slate-100 text-slate-500 hover:bg-slate-200 transition-all border border-slate-200"
+                        >
+                          غائب
+                        </button>
                       )}
-                    >
-                      {!isCheckedIn ? 'تسجيل دخول الآن' : 'تسجيل خروج الآن'}
-                    </button>
+                    </div>
                   ) : (
-                    <div className="w-full py-4 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 font-bold text-center text-sm border border-slate-200 dark:border-slate-700">
-                      تم الحضور اليوم
+                    <div className={cn(
+                      "w-full py-4 rounded-2xl font-bold text-center text-sm border",
+                      todayEntry?.status === 'غائب' 
+                        ? "bg-rose-50 text-rose-500 border-rose-100" 
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700"
+                    )}>
+                      {todayEntry?.status === 'غائب' ? 'المدرب غائب اليوم' : 'تم الحضور اليوم'}
                     </div>
                   )}
                 </div>
@@ -625,82 +600,348 @@ export default function Attendance() {
         </div>
       ) : (
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden p-6">
-                <div className="flex justify-between items-center mb-6">
-                  <div>
-                    <h3 className="font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wide text-sm opacity-50">كشف الحضور للجملة</h3>
-                    <p className="text-xl font-black text-slate-900 dark:text-white">سجل الحضور السريع</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => {
-                        const newStatus = { ...bulkStatus };
-                        filteredStudents.forEach(s => {
-                          if (!newStatus[s.id]) newStatus[s.id] = 'حضر';
-                        });
-                        setBulkStatus(newStatus);
-                      }}
-                      className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200"
-                    >
-                      تحديد الكل حاضر
-                    </button>
-                    <button
-                      onClick={handleBulkSubmit}
-                      className="bg-emerald-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-100 active:scale-95 transition-all"
-                    >
-                      حفظ الحضور للجملة
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredStudents
-                    .map(student => (
-              <div key={student.id} className="border border-slate-100 dark:border-slate-800 p-4 rounded-2xl bg-slate-50/50 dark:bg-slate-800/30 flex flex-col gap-3">
-                <div className="flex justify-between items-start">
-                  <p className="font-bold text-slate-900 dark:text-white truncate">{student.full_name}</p>
-                  <span className="text-[10px] text-slate-400">{student.level}</span>
-                </div>
-                
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setBulkStatus(prev => ({ ...prev, [student.id]: 'حضر' }))}
-                    className={cn(
-                      "flex-1 py-2 rounded-lg text-xs font-bold transition-all",
-                      bulkStatus[student.id] === 'حضر' 
-                        ? "bg-emerald-600 text-white shadow-md" 
-                        : "bg-white dark:bg-slate-900 text-slate-600 border border-slate-200 dark:border-slate-800"
-                    )}
-                  >
-                    حاضر
-                  </button>
-                  <button
-                    onClick={() => setBulkStatus(prev => ({ ...prev, [student.id]: 'غائب' }))}
-                    className={cn(
-                      "flex-1 py-2 rounded-lg text-xs font-bold transition-all",
-                      bulkStatus[student.id] === 'غائب' 
-                        ? "bg-rose-600 text-white shadow-md" 
-                        : "bg-white dark:bg-slate-900 text-slate-600 border border-slate-200 dark:border-slate-800"
-                    )}
-                  >
-                    غائب
-                  </button>
-                  <button
-                    onClick={() => setBulkStatus(prev => ({ ...prev, [student.id]: 'ملغي' }))}
-                    className={cn(
-                      "flex-1 py-2 rounded-lg text-xs font-bold transition-all",
-                      bulkStatus[student.id] === 'ملغي' 
-                        ? "bg-slate-600 text-white shadow-md" 
-                        : "bg-white dark:bg-slate-900 text-slate-600 border border-slate-200 dark:border-slate-800"
-                    )}
-                  >
-                    ملغي
-                  </button>
-                </div>
-              </div>
-            ))}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+            <div>
+              <h3 className="text-xl font-black text-slate-900 dark:text-white">سجل الحضور السريع</h3>
+              <p className="text-sm text-slate-500">يتم حفظ الحضور تلقائياً عند الضغط على الحالة</p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  const confirm = window.confirm('هل أنت متأكد من تسجيل جميع الطلاب الظاهرين كـ "حضر" لهذا اليوم؟');
+                  if (!confirm) return;
+                  const toastId = toast.loading('جاري تسجيل الحضور للجميع...');
+                  try {
+                    for (const s of filteredStudents) {
+                      await handleStatusUpdate(s.id, 'حضر');
+                    }
+                    toast.success('تم تسجيل الحضور للجميع بنجاح', { id: toastId });
+                  } catch (err) {
+                    toast.error('حدث خطأ أثناء التسجيل الجماعي', { id: toastId });
+                  }
+                }}
+                className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-600 hover:text-white transition-all border border-emerald-100"
+              >
+                تحديد الكل حاضر
+              </button>
+              <button
+                onClick={async () => {
+                   const confirm = window.confirm('هل أنت متأكد من تسجيل جميع الطلاب الظاهرين كـ "غائب" لهذا اليوم؟');
+                   if (!confirm) return;
+                   const toastId = toast.loading('جاري تسجيل الغياب للجميع...');
+                   try {
+                     for (const s of filteredStudents) {
+                       await handleStatusUpdate(s.id, 'غائب');
+                     }
+                     toast.success('تم تسجيل الغياب للجميع بنجاح', { id: toastId });
+                   } catch (err) {
+                     toast.error('حدث خطأ أثناء التسجيل الجماعي', { id: toastId });
+                   }
+                }}
+                className="bg-rose-50 text-rose-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-rose-600 hover:text-white transition-all border border-rose-100"
+              >
+                تحديد الكل غائب
+              </button>
+            </div>
+          </div>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full text-right">
+              <thead className="bg-slate-50 dark:bg-slate-800">
+                <tr>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-600 text-right">اسم الطالب</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-600 text-right">الدورة</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-600 text-center">الحالة اليوم</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {filteredStudents.length > 0 ? filteredStudents.map(student => {
+                  const todayStr = format(new Date(), 'yyyy-MM-dd');
+                  const todayBooking = bookings.find(b => 
+                    b.student_id === student.id && 
+                    format(new Date(b.date), 'yyyy-MM-dd') === todayStr
+                  );
+
+                  return (
+                    <tr key={student.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-3">
+                        <p 
+                          onClick={() => setSelectedStudentId(student.id)}
+                          className="font-bold text-slate-900 dark:text-slate-100 cursor-pointer hover:text-blue-600"
+                        >
+                          {student.full_name}
+                        </p>
+                        <p className="text-[10px] text-blue-500 font-bold">{student.course_type}</p>
+                      </td>
+                      <td className="px-6 py-3">
+                        <span className="text-xs text-slate-500">{student.level}</span>
+                      </td>
+                      <td className="px-6 py-3">
+                        <div className="flex justify-center gap-2">
+                          <button
+                            onClick={() => handleStatusUpdate(student.id, 'حضر')}
+                            className={cn(
+                              "px-4 py-2 rounded-xl text-xs font-bold transition-all",
+                              todayBooking?.status === 'حضر' 
+                                ? "bg-emerald-600 text-white shadow-lg shadow-emerald-100" 
+                                : "bg-slate-50 text-slate-500 hover:bg-emerald-50"
+                            )}
+                          >
+                            حاضر
+                          </button>
+                          <button
+                            onClick={() => handleStatusUpdate(student.id, 'غائب')}
+                            className={cn(
+                              "px-4 py-2 rounded-xl text-xs font-bold transition-all",
+                              todayBooking?.status === 'غائب' 
+                                ? "bg-rose-600 text-white shadow-lg shadow-rose-100" 
+                                : "bg-slate-50 text-slate-500 hover:bg-rose-50"
+                            )}
+                          >
+                            غائب
+                          </button>
+                          {todayBooking && (
+                            <button
+                              onClick={async () => {
+                                const toastId = toast.loading('جاري الحذف...');
+                                try {
+                                  await deleteBookingMutation.mutateAsync(todayBooking.id);
+                                  toast.success('تم الحذف', { id: toastId });
+                                  refetchBookings();
+                                } catch (err) {
+                                  toast.error('فشل الحذف', { id: toastId });
+                                }
+                              }}
+                              className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-50 text-rose-500 hover:bg-rose-100"
+                            >
+                              حذف
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }) : (
+                  <tr>
+                    <td colSpan={3} className="px-6 py-12 text-center text-slate-400 italic">
+                      لا يوجد طلاب ينطبق عليهم البحث
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
+
+      {/* Details Modals */}
+      <Modal 
+        isOpen={!!selectedStudentId} 
+        onClose={() => setSelectedStudentId(null)}
+        title="تفاصيل حضور الطالب"
+        size="lg"
+      >
+        {selectedStudentId && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl">
+              <div>
+                <h4 className="font-bold text-lg">{students.find(s => s.id === selectedStudentId)?.full_name}</h4>
+                <p className="text-xs text-slate-500">العمر: {students.find(s => s.id === selectedStudentId)?.age}</p>
+              </div>
+              <p className="text-sm font-bold text-blue-600">سجل الحضور</p>
+            </div>
+
+            {/* Manual Entry Form */}
+            <div className="border border-blue-100 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-900/10 p-4 rounded-2xl space-y-3">
+              <p className="text-xs font-bold text-blue-600">إضافة سجل حضور يدوي</p>
+              <form 
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.currentTarget);
+                  const date = formData.get('date') as string;
+                  const status = formData.get('status') as string;
+                  const student = students.find(s => s.id === selectedStudentId);
+                  
+                  if (!date || !status || !student) return;
+
+                  const toastId = toast.loading('جاري إضافة السجل...');
+                  try {
+                    await addBookingMutation.mutateAsync({
+                      student_id: student.id,
+                      student_name: student.full_name,
+                      session_id: 'manual',
+                      date: new Date(date).toISOString(),
+                      status: status as any,
+                      session_day: format(new Date(date), 'EEEE'),
+                      session_time: '00:00'
+                    });
+                    toast.success('تمت الإضافة بنجاح', { id: toastId });
+                    refetchBookings();
+                    (e.target as HTMLFormElement).reset();
+                  } catch (err) {
+                    toast.error('فشل في إضافة السجل', { id: toastId });
+                  }
+                }}
+                className="grid grid-cols-3 gap-2"
+              >
+                <input 
+                  type="date" 
+                  name="date"
+                  required
+                  defaultValue={format(new Date(), 'yyyy-MM-dd')}
+                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg py-1.5 px-3 text-xs outline-none"
+                />
+                <select 
+                  name="status"
+                  required
+                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg py-1.5 px-3 text-xs outline-none"
+                >
+                  <option value="حضر">حضر</option>
+                  <option value="غائب">غائب</option>
+                </select>
+                <button 
+                  type="submit"
+                  className="bg-blue-600 text-white rounded-lg py-1.5 px-4 text-xs font-bold hover:bg-blue-700 transition-colors"
+                >
+                  إضافة
+                </button>
+              </form>
+            </div>
+
+            <div className="max-h-[300px] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 border-t border-slate-100 dark:border-slate-800">
+              {bookings.filter(b => b.student_id === selectedStudentId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(b => (
+                <div key={b.id} className="py-3 flex justify-between items-center">
+                  <div>
+                    <p className="text-sm font-bold">{format(new Date(b.date), 'dd/MM/yyyy')}</p>
+                    <p className="text-xs text-slate-500">{b.session_day} - {b.session_time}</p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <p className="text-xs text-slate-400">{b.coach_name || 'مدرب غير محدد'}</p>
+                    <span className={cn(
+                      "px-2 py-0.5 rounded text-[10px] font-bold",
+                      b.status === 'حضر' && "bg-emerald-50 text-emerald-600",
+                      b.status === 'غائب' && "bg-rose-50 text-rose-600",
+                      b.status === 'ملغي' && "bg-slate-50 text-slate-500"
+                    )}>
+                      {b.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              {bookings.filter(b => b.student_id === selectedStudentId).length === 0 && (
+                <p className="p-8 text-center text-slate-400 italic">لا يوجد سجل حضور لهذا الطالب</p>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal 
+        isOpen={!!selectedCoachId} 
+        onClose={() => setSelectedCoachId(null)}
+        title="تفاصيل حضور المدرب"
+        size="lg"
+      >
+        {selectedCoachId && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl">
+              <h4 className="font-bold text-lg">{trainers.find(t => t.id === selectedCoachId)?.name}</h4>
+              <p className="text-sm font-bold text-emerald-600">سجل الدخول والخروج</p>
+            </div>
+
+            {/* Manual Coach Entry Form */}
+            <div className="border border-emerald-100 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-900/10 p-4 rounded-2xl space-y-3">
+              <p className="text-xs font-bold text-emerald-600">إضافة سجل حضور يدوي للمدرب</p>
+              <form 
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.currentTarget);
+                  const date = formData.get('date') as string;
+                  const checkIn = formData.get('checkIn') as string;
+                  const checkOut = formData.get('checkOut') as string;
+                  const lessons = parseInt(formData.get('lessons') as string) || 0;
+                  
+                  const trainer = trainers.find(t => t.id === selectedCoachId);
+                  if (!date || !checkIn || !trainer) return;
+
+                  const toastId = toast.loading('جاري إضافة سجل المدرب...');
+                  try {
+                    const checkInDate = new Date(`${date}T${checkIn}`);
+                    const checkOutDate = checkOut ? new Date(`${date}T${checkOut}`) : undefined;
+                    
+                    await addCoachAttendanceMutation.mutateAsync({ 
+                      coach_id: trainer.id,
+                      coach_name: trainer.name,
+                      date,
+                      check_in: checkInDate.toISOString(),
+                      check_out: checkOutDate?.toISOString(),
+                      lessons_count: lessons,
+                      status: 'حاضر'
+                    });
+                    
+                    toast.success('تمت الإضافة بنجاح', { id: toastId });
+                    refetchBookings();
+                    (e.target as HTMLFormElement).reset();
+                  } catch (err) {
+                    toast.error('فشل في إضافة السجل', { id: toastId });
+                  }
+                }}
+                className="grid grid-cols-2 md:grid-cols-4 gap-2"
+              >
+                <input 
+                  type="date" 
+                  name="date"
+                  required
+                  defaultValue={format(new Date(), 'yyyy-MM-dd')}
+                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg py-1.5 px-3 text-[10px] outline-none"
+                />
+                <input 
+                  type="time" 
+                  name="checkIn"
+                  required
+                  placeholder="وقت الدخول"
+                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg py-1.5 px-3 text-[10px] outline-none"
+                />
+                <input 
+                  type="number" 
+                  name="lessons"
+                  placeholder="عدد الدروس"
+                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg py-1.5 px-3 text-[10px] outline-none"
+                />
+                <button 
+                  type="submit"
+                  className="bg-emerald-600 text-white rounded-lg py-1.5 px-4 text-[10px] font-bold hover:bg-emerald-700 transition-colors w-full"
+                >
+                  إضافة
+                </button>
+              </form>
+            </div>
+
+            <div className="max-h-[300px] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 border-t border-slate-100 dark:border-slate-800">
+              {coachAttendance.filter(a => a.coach_id === selectedCoachId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(a => (
+                <div key={a.id} className="py-3 flex justify-between items-center">
+                  <div>
+                    <p className="text-sm font-bold">{a.date}</p>
+                    <p className="text-xs text-slate-500">المدة: {a.duration_minutes || 0} دقيقة</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <div className="flex gap-2 text-[10px] font-bold">
+                      <span className="text-emerald-600">دخول: {a.check_in ? format(new Date(a.check_in), 'HH:mm') : '-'}</span>
+                      <span className="text-rose-600">خروج: {a.check_out ? format(new Date(a.check_out), 'HH:mm') : '-'}</span>
+                    </div>
+                    {a.lessons_count !== undefined && (
+                      <span className="text-[10px] text-blue-600 font-bold">الدروس: {a.lessons_count}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {coachAttendance.filter(a => a.coach_id === selectedCoachId).length === 0 && (
+                <p className="p-8 text-center text-slate-400 italic">لا يوجد سجل حضور لهذا المدرب</p>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
