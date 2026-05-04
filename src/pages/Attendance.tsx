@@ -42,6 +42,7 @@ export default function Attendance() {
   const [selectedCourse, setSelectedCourse] = useState<string>('');
   const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), 'MM'));
   const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
+  const [attendanceDate, setAttendanceDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
 
   const checkInMutation = useCoachCheckIn();
   const markAbsentCoachMutation = useCoachMarkAbsent();
@@ -136,13 +137,14 @@ export default function Attendance() {
     }
   };
 
-  const handleStatusUpdate = async (studentId: string, status: 'حضر' | 'غائب' | null) => {
+  const handleStatusUpdate = async (studentId: string, status: 'حضر' | 'غائب' | null, customDate?: string) => {
     if (!status) return;
     
     const student = students.find(s => s.id === studentId);
     if (!student) return;
 
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const dateToUse = customDate || attendanceDate || format(new Date(), 'yyyy-MM-dd');
+    const todayStr = format(new Date(dateToUse), 'yyyy-MM-dd');
     const existingBooking = (bookings || []).find(b => 
       b.student_id === studentId && 
       format(new Date(b.date), 'yyyy-MM-dd') === todayStr
@@ -161,21 +163,19 @@ export default function Attendance() {
             const remaining = (student.remaining_sessions || 0) - 1;
             const updateData: any = { remaining_sessions: Math.max(0, remaining) };
             if (!student.first_session_date) {
-              updateData.first_session_date = new Date().toISOString();
+              updateData.first_session_date = new Date(dateToUse).toISOString();
             }
             await updateStudentMutation.mutateAsync({ id: student.id, data: updateData });
           }
-          // If changing FROM 'حضر' TO anything ELSE, refund session? 
-          // (Usually safety measure, but let's keep it simple for now as per user request)
         }
       } else {
         await addBookingMutation.mutateAsync({
           student_id: student.id,
           student_name: student.full_name,
           session_id: 'bulk',
-          date: new Date().toISOString(),
+          date: new Date(dateToUse).toISOString(),
           status: status as any,
-          session_day: format(new Date(), 'EEEE'),
+          session_day: format(new Date(dateToUse), 'EEEE'),
           session_time: format(new Date(), 'HH:mm')
         });
 
@@ -184,13 +184,13 @@ export default function Attendance() {
           const remaining = (student.remaining_sessions || 0) - 1;
           const updateData: any = { remaining_sessions: Math.max(0, remaining) };
           if (!student.first_session_date) {
-            updateData.first_session_date = new Date().toISOString();
+            updateData.first_session_date = new Date(dateToUse).toISOString();
           }
           await updateStudentMutation.mutateAsync({ id: student.id, data: updateData });
         }
       }
 
-      if (status === 'غائب') {
+      if (status === 'غائب' && isToday(new Date(dateToUse))) {
         await checkAbsenceAlert(studentId);
       }
       toast.success(`${student.full_name}: تم التسجيل ${status}`, { id: toastId });
@@ -449,14 +449,25 @@ export default function Attendance() {
 
       {activeTab === 'daily' ? (
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-slate-100 dark:border-slate-800">
-            <h3 className="font-bold text-slate-900 dark:text-slate-100">{t('daily_attendance')} - {new Date().toLocaleDateString('ar-EG')}</h3>
-            <p className="text-sm text-slate-500">سجل الحضور اليومي مرتب أبجدياً</p>
+          <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h3 className="font-bold text-slate-900 dark:text-slate-100 text-lg">سجل الحضور اليومي - {format(new Date(attendanceDate), 'dd/MM/yyyy', { locale: undefined })}</h3>
+              <p className="text-sm text-slate-500">اختر التاريخ وعرض حالة الحضور للطلاب</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <CalendarDays className="text-blue-500" size={20} />
+              <input 
+                type="date"
+                value={attendanceDate}
+                onChange={(e) => setAttendanceDate(e.target.value)}
+                className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm font-bold outline-none ring-blue-500/20 focus:ring-4"
+              />
+            </div>
           </div>
           <div className="divide-y divide-slate-50 dark:divide-slate-800">
             {filteredStudents
               .map((student) => {
-                const todayStr = format(new Date(), 'yyyy-MM-dd');
+                const todayStr = format(new Date(attendanceDate), 'yyyy-MM-dd');
                 const todayBooking = bookings.find(b => 
                   b.student_id === student.id && 
                   format(new Date(b.date), 'yyyy-MM-dd') === todayStr
@@ -702,17 +713,23 @@ export default function Attendance() {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
             <div>
               <h3 className="text-xl font-black text-slate-900 dark:text-white">سجل الحضور السريع</h3>
-              <p className="text-sm text-slate-500">يتم حفظ الحضور تلقائياً عند الضغط على الحالة</p>
+              <p className="text-sm text-slate-500">اختر التاريخ المسجل: {format(new Date(attendanceDate), 'dd/MM/yyyy')}</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              <input 
+                type="date"
+                value={attendanceDate}
+                onChange={(e) => setAttendanceDate(e.target.value)}
+                className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-xs font-bold outline-none"
+              />
               <button
                 onClick={async () => {
-                  const confirm = window.confirm('هل أنت متأكد من تسجيل جميع الطلاب الظاهرين كـ "حضر" لهذا اليوم؟');
+                  const confirm = window.confirm(`هل أنت متأكد من تسجيل جميع الطلاب الظاهرين كـ "حضر" لتاريخ ${attendanceDate}؟`);
                   if (!confirm) return;
                   const toastId = toast.loading('جاري تسجيل الحضور للجميع...');
                   try {
                     for (const s of filteredStudents) {
-                      await handleStatusUpdate(s.id, 'حضر');
+                      await handleStatusUpdate(s.id, 'حضر', attendanceDate);
                     }
                     toast.success('تم تسجيل الحضور للجميع بنجاح', { id: toastId });
                   } catch (err) {
@@ -725,12 +742,12 @@ export default function Attendance() {
               </button>
               <button
                 onClick={async () => {
-                   const confirm = window.confirm('هل أنت متأكد من تسجيل جميع الطلاب الظاهرين كـ "غائب" لهذا اليوم؟');
+                   const confirm = window.confirm(`هل أنت متأكد من تسجيل جميع الطلاب الظاهرين كـ "غائب" لتاريخ ${attendanceDate}؟`);
                    if (!confirm) return;
                    const toastId = toast.loading('جاري تسجيل الغياب للجميع...');
                    try {
                      for (const s of filteredStudents) {
-                       await handleStatusUpdate(s.id, 'غائب');
+                       await handleStatusUpdate(s.id, 'غائب', attendanceDate);
                      }
                      toast.success('تم تسجيل الغياب للجميع بنجاح', { id: toastId });
                    } catch (err) {
@@ -750,12 +767,12 @@ export default function Attendance() {
                 <tr>
                   <th className="px-6 py-4 text-xs font-bold text-slate-600 text-right">اسم الطالب</th>
                   <th className="px-6 py-4 text-xs font-bold text-slate-600 text-right">الدورة</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-600 text-center">الحالة اليوم</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-600 text-center">الحالة بتاريخ {attendanceDate}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {filteredStudents.length > 0 ? filteredStudents.map(student => {
-                  const todayStr = format(new Date(), 'yyyy-MM-dd');
+                  const todayStr = format(new Date(attendanceDate), 'yyyy-MM-dd');
                   const todayBooking = bookings.find(b => 
                     b.student_id === student.id && 
                     format(new Date(b.date), 'yyyy-MM-dd') === todayStr
