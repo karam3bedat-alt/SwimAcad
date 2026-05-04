@@ -49,12 +49,9 @@ export default function Courses() {
   const [selectedCourse, setSelectedCourse] = useState<CourseCycle | null>(null);
   const [viewingCourse, setViewingCourse] = useState<CourseCycle | null>(null);
   const [selectedProfileStudent, setSelectedProfileStudent] = useState<Student | null>(null);
-
-  // Form State for Monthly Review
-  const [tempStartDate, setTempStartDate] = useState('');
-  const [tempEndDate, setTempEndDate] = useState('');
-  const [tempCourseType, setTempCourseType] = useState('');
-  const [currentCost, setCurrentCost] = useState<number>(0);
+  const [selectedCoachIds, setSelectedCoachIds] = useState<string[]>([]);
+  const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  const [paymentFilter, setPaymentFilter] = useState<'all' | 'paid' | 'unpaid'>('all');
 
   const courseTypes = useMemo(() => {
     const prices = (appSettings?.payment_config as PaymentConfig)?.coursePrices || {};
@@ -64,41 +61,6 @@ export default function Courses() {
     }
     return typeNames;
   }, [appSettings]);
-
-  const monthlyReview = useMemo(() => {
-    if (!tempStartDate || !tempEndDate) return null;
-    
-    try {
-      const start = parseISO(tempStartDate);
-      const end = parseISO(tempEndDate);
-
-      if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
-
-      const studentsInType = students.filter(s => !tempCourseType || tempCourseType === 'الكل' || s.course_type === tempCourseType);
-      
-      const relevantPayments = payments.filter(p => {
-        if (!p.date) return false;
-        const pDate = parseISO(p.date);
-        if (isNaN(pDate.getTime())) return false;
-        return isWithinInterval(pDate, { start, end });
-      });
-
-      const totalRevenue = relevantPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-      const uniqueStudents = new Set(relevantPayments.map(p => p.student_id)).size;
-      const profit = totalRevenue - (currentCost || 0);
-
-      return {
-        revenue: totalRevenue,
-        activeStudents: uniqueStudents,
-        totalStudentsInLevel: studentsInType.length,
-        profit,
-        status: profit >= 0 ? 'ربح' : 'خسارة'
-      };
-    } catch (e) {
-      console.error("Monthly review calculation error:", e);
-      return null;
-    }
-  }, [tempStartDate, tempEndDate, tempCourseType, students, payments, currentCost]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -111,7 +73,8 @@ export default function Courses() {
       end_date: formData.get('end_date') as string,
       estimated_cost: Number(formData.get('estimated_cost')),
       course_type: formData.get('course_type') as string,
-      coach_id: (formData.get('coach_id') as string) || '',
+      coach_ids: selectedCoachIds,
+      coach_id: selectedCoachIds[0] || '', // Maintain compatibility
       description: (formData.get('description') as string) || '',
       status: formData.get('status') as any || 'قادم'
     };
@@ -172,10 +135,6 @@ export default function Courses() {
           onClick={() => {
             setSelectedCourse(null);
             setIsModalOpen(true);
-            setTempStartDate('');
-            setTempEndDate('');
-            setTempCourseType('');
-            setCurrentCost(0);
           }}
           className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-black flex items-center gap-2 shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all active:scale-95"
         >
@@ -187,7 +146,9 @@ export default function Courses() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {courses.map(course => {
           const courseStudents = students.filter(s => s.course_id === course.id);
-          const coach = trainers.find(t => t.id === course.coach_id);
+          const courseCoaches = trainers.filter(t => 
+            course.coach_ids?.includes(t.id) || (course.coach_id === t.id)
+          );
           
           return (
             <div 
@@ -230,10 +191,19 @@ export default function Courses() {
                   <Calculator size={16} className="text-amber-500" />
                   <span>التكاليف المقدرة: {course.estimated_cost} ₪</span>
                 </div>
-                {coach && (
-                  <div className="flex items-center gap-3 text-sm font-bold text-slate-600 dark:text-slate-400">
-                    <CheckCircle2 size={16} className="text-emerald-500" />
-                    <span>المدرب: {coach.name || coach.trainer_name}</span>
+                {courseCoaches.length > 0 && (
+                  <div className="flex items-start gap-3 text-sm font-bold text-slate-600 dark:text-slate-400">
+                    <CheckCircle2 size={16} className="text-emerald-500 mt-0.5" />
+                    <div>
+                      <p className="text-[10px] text-slate-400 uppercase mb-1">المدربون:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {courseCoaches.map(c => (
+                          <span key={c.id} className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[10px]">
+                            {c.name || c.trainer_name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -243,10 +213,7 @@ export default function Courses() {
                   onClick={(e) => {
                     e.stopPropagation();
                     setSelectedCourse(course);
-                    setTempStartDate(course.start_date);
-                    setTempEndDate(course.end_date);
-                    setTempCourseType(course.course_type);
-                    setCurrentCost(course.estimated_cost || 0);
+                    setSelectedCoachIds(course.coach_ids || (course.coach_id ? [course.coach_id] : []));
                     setIsModalOpen(true);
                   }}
                   className="flex-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-3 rounded-2xl text-xs font-black transition-all flex items-center justify-center gap-2"
@@ -308,7 +275,6 @@ export default function Courses() {
                   type="date"
                   required
                   defaultValue={selectedCourse?.start_date}
-                  onChange={(e) => setTempStartDate(e.target.value)}
                   className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl py-4 px-6 font-bold outline-none focus:ring-2 focus:ring-blue-600"
                 />
               </div>
@@ -319,7 +285,6 @@ export default function Courses() {
                   type="date"
                   required
                   defaultValue={selectedCourse?.end_date}
-                  onChange={(e) => setTempEndDate(e.target.value)}
                   className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl py-4 px-6 font-bold outline-none focus:ring-2 focus:ring-blue-600"
                 />
               </div>
@@ -333,7 +298,6 @@ export default function Courses() {
                   type="number"
                   required
                   defaultValue={selectedCourse?.estimated_cost}
-                  onChange={(e) => setCurrentCost(Number(e.target.value))}
                   className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl py-4 px-6 font-bold outline-none focus:ring-2 focus:ring-blue-600"
                   placeholder="التكلفة التشغيلية للدورة"
                 />
@@ -344,7 +308,6 @@ export default function Courses() {
                   name="course_type"
                   required
                   defaultValue={selectedCourse?.course_type}
-                  onChange={(e) => setTempCourseType(e.target.value)}
                   className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl py-4 px-6 font-bold outline-none focus:ring-2 focus:ring-blue-600"
                 >
                   <option value="">اختر التصنيف</option>
@@ -357,20 +320,36 @@ export default function Courses() {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-xs font-black text-slate-400 uppercase tracking-widest">المدرب</label>
-                <select
-                  name="coach_id"
-                  defaultValue={selectedCourse?.coach_id}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl py-4 px-6 font-bold outline-none focus:ring-2 focus:ring-blue-600"
-                >
-                  <option value="">اختر مدرباً (اختياري)</option>
-                  {trainers.map(t => (
-                    <option key={t.id} value={t.id}>{t.name || t.trainer_name}</option>
-                  ))}
-                </select>
+              <div className="space-y-2 col-span-2">
+                <label className="text-xs font-black text-slate-400 uppercase tracking-widest">المدربون المسؤولون</label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl max-h-[150px] overflow-y-auto">
+                  {trainers.map(t => {
+                    const isSelected = selectedCoachIds.includes(t.id);
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedCoachIds(selectedCoachIds.filter(id => id !== t.id));
+                          } else {
+                            setSelectedCoachIds([...selectedCoachIds, t.id]);
+                          }
+                        }}
+                        className={cn(
+                          "px-3 py-2 rounded-xl text-[10px] font-bold border transition-all text-center",
+                          isSelected 
+                            ? "bg-blue-600 text-white border-blue-600 shadow-sm" 
+                            : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400"
+                        )}
+                      >
+                        {t.name || t.trainer_name}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 col-span-2 md:col-span-1">
                 <label className="text-xs font-black text-slate-400 uppercase tracking-widest">حالة الدورة</label>
                 <select
                   name="status"
@@ -413,95 +392,6 @@ export default function Courses() {
               </button>
             </div>
           </form>
-
-          {/* Monthly System Comparison Side Panel */}
-          <div className="bg-slate-50 dark:bg-slate-800/50 rounded-3xl p-6 border border-slate-100 dark:border-slate-800/50 flex flex-col">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center">
-                  <History size={20} />
-                </div>
-                <div>
-                  <h4 className="font-black text-slate-900 dark:text-white">تحليل الجدوى المالية</h4>
-                  <p className="text-[10px] text-slate-500 font-bold">بناءً على التواريخ المحددة (النظام الشهري)</p>
-                </div>
-              </div>
-            </div>
-
-            {!monthlyReview ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl">
-                <AlertCircle className="text-slate-300 mb-3" size={32} />
-                <p className="text-slate-400 text-sm font-bold leading-relaxed">
-                  الرجاء إدخال التواريخ وتصنيف الدورة والتكلفة المقدرة لإظهار تحليل الربح والخسارة المتوقع
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
-                    <p className="text-[10px] font-black text-slate-400 uppercase mb-1">صافي الإيرادات</p>
-                    <p className="text-xl font-black text-blue-600">{monthlyReview.revenue.toLocaleString()} ₪</p>
-                  </div>
-                  <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
-                    <p className="text-[10px] font-black text-slate-400 uppercase mb-1">النتيجة المتوقعة</p>
-                    <p className={cn(
-                      "text-xl font-black",
-                      monthlyReview.profit >= 0 ? "text-emerald-600" : "text-rose-600"
-                    )}>
-                      {monthlyReview.profit.toLocaleString()} ₪
-                      <span className="text-[10px] block font-bold">{monthlyReview.status}</span>
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
-                  <div className="flex justify-between items-center mb-2">
-                    <p className="text-[10px] font-black text-slate-400 uppercase">طلاب دفعوا في هذه الفترة</p>
-                    <Users size={14} className="text-slate-300" />
-                  </div>
-                  <div className="flex items-end gap-2">
-                    <p className="text-2xl font-black text-slate-900 dark:text-white">{monthlyReview.activeStudents}</p>
-                    <p className="text-[10px] text-slate-500 font-bold mb-1.5 whitespace-nowrap">من أصل {monthlyReview.totalStudentsInLevel} طالب مسجل (تصنيف: {tempCourseType || 'عام'})</p>
-                  </div>
-                </div>
-
-                <div className={cn(
-                   "p-4 rounded-2xl border",
-                   monthlyReview.profit >= 0 ? "bg-emerald-50 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800/50 text-emerald-800 dark:text-emerald-300" : 
-                   "bg-rose-50 border-rose-100 dark:bg-rose-900/20 dark:border-rose-800/50 text-rose-800 dark:text-rose-300"
-                )}>
-                  <div className="flex items-start gap-3">
-                    {monthlyReview.profit >= 0 ? <TrendingUp size={18} className="mt-1 shrink-0" /> : <TrendingDown size={18} className="mt-1 shrink-0" />}
-                    <p className="text-xs leading-relaxed font-bold">
-                      {monthlyReview.profit >= 0 
-                        ? `بناءً على بيانات النظام الشهري، هذه الدورة رابحة. الإيرادات تغطي التكاليف وتوفر هامش ربح قدره ${monthlyReview.profit} ₪.`
-                        : `تنبيه: التكاليف المقدرة أعلى من إيرادات النظام الشهري في هذه الفترة بمقدار ${Math.abs(monthlyReview.profit)} ₪. قد تحتاج لزيادة عدد الطلاب أو تقليل التكاليف.`
-                      }
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">توصية النظام</h5>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-500 font-bold">نقطة التعادل (طلاب):</span>
-                    <span className="font-black text-slate-900 dark:text-white">
-                      {Math.ceil(currentCost / (monthlyReview.revenue / (monthlyReview.activeStudents || 1) || 1))} طالب
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-500 font-bold">نسبة التغطية الحالية:</span>
-                    <span className={cn(
-                      "font-black",
-                      (monthlyReview.revenue / currentCost) >= 1 ? "text-emerald-600" : "text-rose-600"
-                    )}>
-                      {Math.round((monthlyReview.revenue / (currentCost || 1)) * 100)}%
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       </Modal>
 
@@ -514,10 +404,10 @@ export default function Courses() {
         {viewingCourse && (() => {
           // Calculate Real-time statistics for this course period and type
           try {
-            const start = parseISO(viewingCourse.start_date);
-            const end = parseISO(viewingCourse.end_date);
+            const startDate = parseISO(viewingCourse.start_date);
+            const endDate = parseISO(viewingCourse.end_date);
             
-            if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+            if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
               return <div className="p-8 text-center text-rose-500 font-bold">خطأ في تواريخ الدورة. يرجى تعديل الدورة وتصحيح التواريخ.</div>;
             }
 
@@ -527,7 +417,7 @@ export default function Courses() {
               const pDate = parseISO(p.date);
               if (isNaN(pDate.getTime())) return false;
               
-              const inPeriod = isWithinInterval(pDate, { start, end });
+              const inPeriod = isWithinInterval(pDate, { start: startDate, end: endDate });
               const student = students.find(s => s.id === p.student_id);
               const matchesType = viewingCourse.course_type === 'الكل' || student?.course_type === viewingCourse.course_type;
               return inPeriod && matchesType;
@@ -539,48 +429,72 @@ export default function Courses() {
             
             const enrolledStudents = students.filter(s => {
               const isExplicitlyEnrolled = s.course_id === viewingCourse.id;
+              if (isExplicitlyEnrolled) return true;
+
               const rDateStr = s.registration_date;
-              if (!rDateStr) return isExplicitlyEnrolled;
+              if (!rDateStr) return false;
               
               const registrationDate = parseISO(rDateStr);
-              if (isNaN(registrationDate.getTime())) return isExplicitlyEnrolled;
+              if (isNaN(registrationDate.getTime())) return false;
 
-              const isWithinPeriod = isWithinInterval(registrationDate, { start, end });
+              const isWithinPeriod = isWithinInterval(registrationDate, { start: startDate, end: endDate });
               const matchesType = viewingCourse.course_type === 'الكل' || s.course_type === viewingCourse.course_type;
               
-              return isExplicitlyEnrolled || (isWithinPeriod && matchesType);
+              return isWithinPeriod && matchesType;
             });
-            
-            // Bookings for attendance analysis
+
             const courseBookings = bookings.filter(b => {
                if (!b.date) return false;
                const bDate = parseISO(b.date);
                if (isNaN(bDate.getTime())) return false;
 
-               const inPeriod = isWithinInterval(bDate, { start, end });
+               const inPeriod = isWithinInterval(bDate, { start: startDate, end: endDate });
                const student = students.find(s => s.id === b.student_id);
                const matchesType = viewingCourse.course_type === 'الكل' || student?.course_type === viewingCourse.course_type;
                return inPeriod && matchesType;
             });
 
             const participatingTrainers = trainers.filter(t => 
-               courseBookings.some(b => b.coach_name === t.name || b.trainer_name === t.trainer_name || b.coach_name === t.trainer_name) || t.id === viewingCourse.coach_id
+               courseBookings.some(b => b.coach_name === t.name || b.trainer_name === t.trainer_name || b.coach_name === t.trainer_name) || 
+               viewingCourse.coach_ids?.includes(t.id) || 
+               t.id === viewingCourse.coach_id
             );
+
+            const filteredEnrolledStudents = enrolledStudents.filter(s => {
+              const matchesSearch = s.full_name.toLowerCase().includes(studentSearchQuery.toLowerCase()) || 
+                                   s.phone.includes(studentSearchQuery);
+              
+              const studentPaymentsInPeriod = periodPayments.filter(p => p.student_id === s.id);
+              const totalPaid = studentPaymentsInPeriod.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+              const isPaid = totalPaid > 0;
+
+              if (paymentFilter === 'paid') return matchesSearch && isPaid;
+              if (paymentFilter === 'unpaid') return matchesSearch && !isPaid;
+              return matchesSearch;
+            });
+
+            const collectionEfficiency = enrolledStudents.length > 0 ? (payerCount / enrolledStudents.length) * 100 : 0;
+            const avgAttendance = courseBookings.length > 0 ? (courseBookings.filter(b => b.status === 'حضر').length / courseBookings.length) * 100 : 0;
+            const periodProgress = isWithinInterval(new Date(), { start: startDate, end: endDate }) ? ( (new Date().getTime() - startDate.getTime()) / (endDate.getTime() - startDate.getTime()) ) * 100 : (new Date() > endDate ? 100 : 0);
 
             return (
             <div className="space-y-8 font-['Cairo'] text-right" dir="rtl">
               {/* Financial Dashboard */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl border border-emerald-100 dark:border-emerald-800/50">
-                  <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase mb-1">إجمالي المحصل</p>
+                <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl border border-emerald-100 dark:border-emerald-800/50 shadow-sm">
+                  <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase mb-1 flex items-center gap-1">
+                    <TrendingUp size={10} /> إجمالي المحصل
+                  </p>
                   <p className="text-xl font-black text-emerald-700 dark:text-emerald-300">{totalRevenue.toLocaleString()} ₪</p>
                 </div>
-                <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-100 dark:border-amber-800/50">
-                  <p className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase mb-1">التكاليف المقدرة</p>
+                <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-100 dark:border-amber-800/50 shadow-sm">
+                  <p className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase mb-1 flex items-center gap-1">
+                    <Calculator size={10} /> التكاليف المقدرة
+                  </p>
                   <p className="text-xl font-black text-amber-700 dark:text-amber-300">{viewingCourse.estimated_cost.toLocaleString()} ₪</p>
                 </div>
                 <div className={cn(
-                  "p-4 rounded-2xl border",
+                  "p-4 rounded-2xl border shadow-sm",
                   netProfit >= 0 
                     ? "bg-blue-50 border-blue-100 dark:bg-blue-900/20 dark:border-blue-800/50" 
                     : "bg-rose-50 border-rose-100 dark:bg-rose-900/20 dark:border-rose-800/50"
@@ -593,50 +507,98 @@ export default function Courses() {
                     {netProfit.toLocaleString()} ₪
                   </p>
                 </div>
-                <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
-                  <p className="text-[10px] font-black text-slate-400 uppercase mb-1">طلاب سددوا</p>
-                  <p className="text-xl font-black text-slate-700 dark:text-slate-300">{payerCount}</p>
+                <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-800/50 shadow-sm">
+                   <p className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase mb-1 flex items-center gap-1">
+                     <Calculator size={10} /> نقطة التعادل
+                   </p>
+                   <p className="text-xl font-black text-indigo-700 dark:text-indigo-300">
+                     {Math.ceil((viewingCourse.estimated_cost || 0) / (totalRevenue / (payerCount || 1) || 1))} طالب
+                   </p>
+                </div>
+                <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                  <p className="text-[10px] font-black text-slate-400 uppercase mb-1">نسبة التغطية</p>
+                  <p className={cn(
+                    "text-xl font-black",
+                    (totalRevenue / (viewingCourse.estimated_cost || 1)) >= 1 ? "text-emerald-600" : "text-rose-600"
+                  )}>
+                    {Math.round((totalRevenue / (viewingCourse.estimated_cost || 1)) * 100)}%
+                  </p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Students Section */}
+                {/* Students Section with Smart Search */}
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-3">
                     <h4 className="font-black text-slate-900 dark:text-white flex items-center gap-2">
-                      <Users size={18} className="text-blue-600" />
-                      الطلاب المسجلون في الدورة ({enrolledStudents.length})
+                      <Search size={18} className="text-blue-600" />
+                      البحث الذكي في الدورة
                     </h4>
+                    
+                    <div className="flex gap-2">
+                       <div className="relative flex-1">
+                         <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                         <input
+                          type="text"
+                          placeholder="ابحث عن طالب باسمه أو هاتفه..."
+                          value={studentSearchQuery}
+                          onChange={(e) => setStudentSearchQuery(e.target.value)}
+                          className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl py-2 pr-10 pl-4 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-600"
+                         />
+                       </div>
+                       <select
+                        value={paymentFilter}
+                        onChange={(e) => setPaymentFilter(e.target.value as any)}
+                        className="bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl px-2 py-2 text-[10px] font-black outline-none"
+                       >
+                         <option value="all">الكل</option>
+                         <option value="paid">مسدد</option>
+                         <option value="unpaid">غير مسدد</option>
+                       </select>
+                    </div>
                   </div>
                   
                   <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm">
                     <div className="max-h-[400px] overflow-y-auto">
-                      {enrolledStudents.length > 0 ? (
-                        <table className="w-full text-right">
+                      {filteredEnrolledStudents.length > 0 ? (
+                        <table className="w-full text-right text-xs">
                           <thead className="bg-slate-50 dark:bg-slate-800 text-[10px] font-black text-slate-500 uppercase">
                             <tr>
-                              <th className="p-4">اسم الطالب</th>
-                              <th className="p-4 text-center">الحضور</th>
-                              <th className="p-4 text-center">الإجراءات</th>
+                              <th className="p-4">الطالب</th>
+                              <th className="p-4 text-center">أهم البيانات</th>
+                              <th className="p-4 text-center">حالة الدفع</th>
+                              <th className="p-4 text-center"></th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                            {enrolledStudents.map(student => {
+                            {filteredEnrolledStudents.map(student => {
                               const studentBookings = courseBookings.filter(b => b.student_id === student.id);
                               const presentCount = studentBookings.filter(b => b.status === 'حضر').length;
-                              const absentCount = studentBookings.filter(b => b.status === 'غائب').length;
+                              
+                              const studentPaymentsInPeriod = periodPayments.filter(p => p.student_id === student.id);
+                              const totalPaid = studentPaymentsInPeriod.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+                              const isPaid = totalPaid > 0;
 
                               return (
                                 <tr key={student.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                                  <td className="p-4 text-sm font-bold">
+                                  <td className="p-4 font-bold">
                                     {student.full_name}
-                                    <span className="block text-[10px] text-slate-400 font-bold">{student.phone}</span>
+                                    <span className="block text-[10px] text-slate-400 font-bold">{student.level}</span>
                                   </td>
                                   <td className="p-4 text-center">
-                                    <div className="flex items-center justify-center gap-2">
-                                      <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">حضر: {presentCount}</span>
-                                      <span className="text-[10px] font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded">غاب: {absentCount}</span>
+                                    <div className="flex flex-col items-center gap-1">
+                                      <span className="text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded">حضور: {presentCount} جلسات</span>
+                                      <span className="text-[9px] font-bold text-slate-400">{student.phone}</span>
                                     </div>
+                                  </td>
+                                  <td className="p-4 text-center">
+                                    {isPaid ? (
+                                      <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded flex items-center justify-center gap-1">
+                                        <CheckCircle2 size={10} /> تم الدفع ({totalPaid}₪)
+                                      </span>
+                                    ) : (
+                                      <span className="text-[9px] font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded">غير مسدد</span>
+                                    )}
                                   </td>
                                   <td className="p-4 text-center">
                                     <button
@@ -645,9 +607,8 @@ export default function Courses() {
                                         setIsProfileModalOpen(true);
                                       }}
                                       className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
-                                      title="فتح الملف الشخصي"
                                     >
-                                      <ExternalLink size={16} />
+                                      <ExternalLink size={14} />
                                     </button>
                                   </td>
                                 </tr>
@@ -657,96 +618,105 @@ export default function Courses() {
                         </table>
                       ) : (
                         <div className="p-12 text-center text-slate-400">
-                          <Users size={40} className="mx-auto mb-3 opacity-20" />
-                          <p className="text-sm font-bold leading-relaxed">
-                            لا يوجد طلاب مسجلون مباشرة في هذه الدورة.<br/>
-                            <span className="text-[10px] text-slate-400">يظهر التحليل المالي جميع الطلاب من تصنيف "{viewingCourse.course_type}" الذين دفعوا في هذه الفترة.</span>
-                          </p>
+                          <AlertCircle size={32} className="mx-auto mb-3 opacity-20" />
+                          <p className="text-sm font-bold">لا توجد نتائج مطابقة للبحث</p>
                         </div>
                       )}
                     </div>
                   </div>
                 </div>
 
-                {/* Trainers & Payments Section */}
-                <div className="space-y-8">
-                  {/* Participating Trainers */}
-                  <div className="space-y-4">
-                    <h4 className="font-black text-slate-900 dark:text-white flex items-center gap-2">
-                      <CheckCircle2 size={18} className="text-emerald-600" />
-                      المدربين المشاركين ({participatingTrainers.length})
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {participatingTrainers.map(trainer => (
-                        <div key={trainer.id} className="p-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl flex items-center gap-3">
-                          <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-500 font-black">
-                            {trainer.name?.charAt(0) || trainer.trainer_name?.charAt(0)}
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold text-slate-900 dark:text-white">{trainer.name || trainer.trainer_name}</p>
-                            <p className="text-[10px] text-slate-500">{trainer.phone || '-'}</p>
-                          </div>
-                        </div>
-                      ))}
+                {/* Trainers & Analytics Section */}
+                <div className="space-y-6">
+                  {/* Detailed Analytics */}
+                  <div className="p-6 bg-slate-900 text-white rounded-3xl shadow-xl space-y-4">
+                    <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                       <Calculator size={14} /> التحليل الذكي للدورة
+                    </h5>
+                    <div className="grid grid-cols-2 gap-4">
+                       <div className="space-y-1">
+                         <span className="text-[10px] font-bold text-slate-400">معدل الإيراد / طالب</span>
+                         <p className="text-lg font-black">{Math.round(totalRevenue / (enrolledStudents.length || 1))} ₪</p>
+                         <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+                           <div className="bg-emerald-500 h-full" style={{ width: `${Math.min(100, (totalRevenue / (enrolledStudents.length || 1) / 500) * 100)}%` }} />
+                         </div>
+                       </div>
+                       <div className="space-y-1">
+                         <span className="text-[10px] font-bold text-slate-400">كفاءة التحصيل</span>
+                         <p className="text-lg font-black">{Math.round(collectionEfficiency)}%</p>
+                         <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+                           <div className="bg-blue-500 h-full" style={{ width: `${collectionEfficiency}%` }} />
+                         </div>
+                       </div>
+                       <div className="space-y-1">
+                         <span className="text-[10px] font-bold text-slate-400">نسبة تقدم المدة</span>
+                         <p className="text-lg font-black">{Math.round(periodProgress)}%</p>
+                         <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+                           <div className="bg-amber-500 h-full" style={{ width: `${periodProgress}%` }} />
+                         </div>
+                       </div>
+                       <div className="space-y-1">
+                         <span className="text-[10px] font-bold text-slate-400">متوسط الحضور</span>
+                         <p className="text-lg font-black">{Math.round(avgAttendance)}%</p>
+                         <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
+                           <div className="bg-purple-500 h-full" style={{ width: `${avgAttendance}%` }} />
+                         </div>
+                       </div>
                     </div>
                   </div>
 
-                  {/* Payments Section */}
-                  <div className="space-y-4">
-                    <h4 className="font-black text-slate-900 dark:text-white flex items-center gap-2">
-                      <DollarSign size={18} className="text-emerald-600" />
-                      سجل المدفوعات في الفترة ({periodPayments.length})
-                    </h4>
-                    
-                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm">
-                      <div className="max-h-[300px] overflow-y-auto">
-                        {periodPayments.length > 0 ? (
-                          <table className="w-full text-right">
-                            <thead className="bg-slate-50 dark:bg-slate-800 text-[10px] font-black text-slate-500 uppercase">
-                              <tr>
-                                <th className="p-4">اسم الطالب</th>
-                                <th className="p-4 text-center">المبلغ</th>
-                                <th className="p-4 text-center">التاريخ</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                              {periodPayments.map(payment => {
-                                const s = students.find(st => st.id === payment.student_id);
-                                return (
-                                  <tr key={payment.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                                    <td className="p-4 text-sm font-bold">{s?.full_name || 'طالب مجهول'}</td>
-                                    <td className="p-4 text-center font-black text-emerald-600">{payment.amount} ₪</td>
-                                    <td className="p-4 text-center text-[10px] font-bold text-slate-400">
-                                      {format(parseISO(payment.date), 'yyyy-MM-dd')}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        ) : (
-                          <div className="p-12 text-center text-slate-400">
-                            <DollarSign size={40} className="mx-auto mb-3 opacity-20" />
-                            <p className="text-sm font-bold">لم يتم تسجيل أي مدفوعات في هذا النطاق الزمني</p>
-                          </div>
-                        )}
+                  {/* Trainers Summary */}
+                  <div className="space-y-3">
+                    <h5 className="font-black text-slate-900 dark:text-white flex items-center gap-2">
+                       <Users size={18} className="text-indigo-600" />
+                       المدربون المسؤولون
+                    </h5>
+                    <div className="grid grid-cols-1 gap-2">
+                       {participatingTrainers.length > 0 ? participatingTrainers.map(t => (
+                         <div key={t.id} className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm">
+                           <div className="flex items-center gap-3">
+                             <div className="w-8 h-8 bg-indigo-600 text-white rounded-lg flex items-center justify-center font-bold text-xs">
+                               {t.name.charAt(0)}
+                             </div>
+                             <div>
+                               <p className="text-sm font-bold">{t.name}</p>
+                               <p className="text-[9px] text-slate-400 font-bold">{t.specialty}</p>
+                             </div>
+                           </div>
+                           <div className="text-left">
+                             <span className="text-[10px] font-black text-indigo-600">{t.loyalty_points || 0} نقطة</span>
+                           </div>
+                         </div>
+                       )) : <p className="text-xs text-slate-400 italic">لا يوجد مدربون مسجلون حالياً.</p>}
+                    </div>
+                  </div>
+
+                  <div className="p-6 bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 rounded-3xl border border-indigo-100 dark:border-indigo-800">
+                    <h5 className="text-sm font-black text-indigo-900 dark:text-indigo-200 mb-2">إحصائيات المدة</h5>
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-bold text-slate-500">من:</span>
+                        <span className="font-black text-slate-700 dark:text-slate-200">{format(startDate, 'dd/MM/yyyy')}</span>
+                        <span className="font-bold text-slate-500">إلى:</span>
+                        <span className="font-black text-slate-700 dark:text-slate-200">{format(endDate, 'dd/MM/yyyy')}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-slate-500">الحالة الزمنية:</span>
+                        <span className={cn(
+                          "px-3 py-1 rounded-full text-[10px] font-black uppercase",
+                          new Date() < startDate ? "bg-amber-100 text-amber-600" :
+                          new Date() > endDate ? "bg-slate-100 text-slate-600" :
+                          "bg-emerald-100 text-emerald-600"
+                        )}>
+                          {new Date() < startDate ? 'قيد الانتظار' : new Date() > endDate ? 'منتهية' : 'جارية حالياً'}
+                        </span>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-
-              {viewingCourse.description && (
-                <div className="p-6 bg-blue-50 dark:bg-blue-900/10 rounded-3xl border border-blue-100 dark:border-blue-900/30">
-                  <h5 className="text-[10px] font-black text-blue-800 dark:text-blue-300 uppercase mb-3 tracking-widest flex items-center gap-2">
-                    <AlertCircle size={14} />
-                    ملاحظات الدورة
-                  </h5>
-                  <p className="text-sm text-blue-900 dark:text-blue-200 leading-relaxed font-bold">{viewingCourse.description}</p>
-                </div>
-              )}
             </div>
-          );
+            );
         } catch (e) {
           console.error("View course stats error:", e);
           return <div className="p-8 text-center text-rose-500 font-bold">حدث خطأ أثناء تحميل إحصائيات الدورة. يرجى التأكد من صحة التواريخ والبيانات.</div>;

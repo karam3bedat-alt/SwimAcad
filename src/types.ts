@@ -34,7 +34,8 @@ export interface CourseCycle {
   end_date: string;
   estimated_cost: number;
   description?: string;
-  coach_id?: string;
+  coach_ids?: string[]; // Multiple trainers supported
+  coach_id?: string; // Keep for backward compatibility if needed, but prefer ids
   status: 'نشط' | 'مكتمل' | 'قادم';
 }
 
@@ -95,6 +96,7 @@ export interface CoachAttendance {
 export interface Session {
   id: string;
   coach_id: string;
+  coach_ids?: string[]; // Multiple trainers
   coach_name?: string;
   trainer_name?: string;
   day: 'السبت' | 'الأحد' | 'الاثنين' | 'الثلاثاء' | 'الأربعاء' | 'الخميس' | 'الجمعة';
