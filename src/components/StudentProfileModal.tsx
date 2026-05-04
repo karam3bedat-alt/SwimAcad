@@ -4,6 +4,7 @@ import { Student, Payment, Booking } from '../types';
 import { Loader2, User, Wallet, Calendar, Star, Image as ImageIcon, Phone, MapPin, Award, UserCheck, Clock, RefreshCw } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { usePayments } from '../hooks/usePayments';
+import { useTransactions } from '../hooks/useTransactions';
 import { useBookings } from '../hooks/useBookings';
 import { useStudentEvaluations, useStudentMedia } from '../hooks/useStudents';
 import { StarRating } from './StudentCoachFeatures';
@@ -23,6 +24,7 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
   const [activeTab, setActiveTab] = useState<TabType>('info');
   
   const { data: allPayments = [], isLoading: isLoadingPayments } = usePayments();
+  const { data: allTransactions = [], isLoading: isLoadingTransactions } = useTransactions();
   const { data: allBookings = [], isLoading: isLoadingBookings } = useBookings();
   const { data: evaluations = [], isLoading: isLoadingEvaluations } = useStudentEvaluations(student?.id || '');
   const { data: media = [], isLoading: isLoadingMedia } = useStudentMedia(student?.id || '');
@@ -30,9 +32,12 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
   if (!student) return null;
 
   const studentPayments = allPayments.filter(p => p.student_id === student.id);
+  const studentTransactions = allTransactions.filter(t => t.student_id === student.id);
   const studentBookings = allBookings.filter(b => b.student_id === student.id);
 
   const totalPaid = studentPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const totalTransactions = studentTransactions.reduce((sum, t) => sum + (Number(t.total_amount) || 0), 0);
+  const overallTotal = totalPaid + totalTransactions;
 
   const tabs: { id: TabType, label: string, icon: any }[] = [
     { id: 'info', label: 'المعلومات الأساسية', icon: User },
@@ -117,48 +122,131 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
           </div>
         );
       case 'payments':
+        // Group payments by Month and Course Type to find balances
+        const groupedPayments: Record<string, { total: number, required: number, payments: Payment[] }> = {};
+        
+        studentPayments.forEach(p => {
+          const key = `${p.month || 'غير محدد'}-${p.course_type || 'دورة'}`;
+          if (!groupedPayments[key]) {
+            groupedPayments[key] = { total: 0, required: 0, payments: [] };
+          }
+          groupedPayments[key].total += Number(p.amount) || 0;
+          // Take the highest required_amount as the target for this month/course
+          if (p.required_amount && p.required_amount > groupedPayments[key].required) {
+            groupedPayments[key].required = p.required_amount;
+          }
+          groupedPayments[key].payments.push(p);
+        });
+
         return (
-          <div className="space-y-4 font-['Cairo'] animate-in fade-in slide-in-from-bottom-4">
-            <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-xl flex justify-between items-center">
-              <span className="text-sm font-bold text-emerald-700">إجمالي المدفوعات</span>
-              <span className="text-xl font-bold text-emerald-700">{totalPaid.toLocaleString()} ₪</span>
+          <div className="space-y-6 font-['Cairo'] animate-in fade-in slide-in-from-bottom-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-xl border border-emerald-100 dark:border-emerald-800">
+                <span className="text-[10px] uppercase font-bold text-emerald-600 block mb-1 tracking-wider">إجمالي المدفوعات</span>
+                <span className="text-xl font-black text-emerald-700 dark:text-emerald-400">{overallTotal.toLocaleString()} ₪</span>
+              </div>
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800">
+                <span className="text-[10px] uppercase font-bold text-blue-600 block mb-1 tracking-wider">عدد العمليات</span>
+                <span className="text-xl font-black text-blue-700 dark:text-blue-400">{studentPayments.length + studentTransactions.length}</span>
+              </div>
             </div>
-            <div className="max-h-[40vh] overflow-y-auto space-y-2 pr-2">
-              {isLoadingPayments ? (
-                <div className="flex justify-center p-8"><Loader2 className="animate-spin text-blue-600" /></div>
-              ) : studentPayments.length === 0 ? (
-                <p className="text-center text-slate-400 py-8 italic font-['Cairo']">لا توجد دفعات مسجلة.</p>
-              ) : (
-                studentPayments.map(p => (
-                  <div key={p.id} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-3 rounded-xl flex justify-between items-center shadow-sm">
-                    <div className="flex-1">
-                      <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <span className="font-black text-slate-900 dark:text-slate-100">{p.amount.toLocaleString()} ₪</span>
-                        {p.required_amount && (
-                          <span className="text-[10px] text-slate-400">
-                             من أصل {p.required_amount.toLocaleString()} ₪
+
+            {/* Subscriptions Summary Table */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-black text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                <div className="w-2 h-4 bg-blue-600 rounded-full" />
+                ملخص الدورات والاشتراكات
+              </h4>
+              <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                <table className="w-full text-right text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-slate-800/50">
+                      <th className="px-4 py-3 font-bold text-slate-500">الفترة/الدورة</th>
+                      <th className="px-4 py-3 font-bold text-slate-500">المبلغ المطلوب</th>
+                      <th className="px-4 py-3 font-bold text-slate-500">المدفوع</th>
+                      <th className="px-4 py-3 font-bold text-slate-500">المتبقي</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {Object.entries(groupedPayments).length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-8 text-center text-slate-400 italic">لا توجد بيانات اشتراكات.</td>
+                      </tr>
+                    ) : (
+                      Object.entries(groupedPayments).map(([key, data]) => {
+                        const balance = Math.max(0, data.required - data.total);
+                        return (
+                          <tr key={key} className="hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
+                            <td className="px-4 py-3 font-bold text-slate-700 dark:text-slate-300">{key}</td>
+                            <td className="px-4 py-3 text-slate-500">{data.required > 0 ? `${data.required.toLocaleString()} ₪` : '-'}</td>
+                            <td className="px-4 py-3 text-emerald-600 font-bold">{data.total.toLocaleString()} ₪</td>
+                            <td className="px-4 py-3">
+                              {balance > 0 ? (
+                                <span className="px-2 py-0.5 bg-rose-50 text-rose-600 rounded-lg font-black">{balance.toLocaleString()} ₪</span>
+                              ) : (
+                                <span className="text-emerald-500">✓ مسدد</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* List of All Transactions/Payments */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-black text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                <div className="w-2 h-4 bg-emerald-500 rounded-full" />
+                سجل الدفعات التفصيلي
+              </h4>
+              <div className="max-h-[40vh] overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                {isLoadingPayments || isLoadingTransactions ? (
+                  <div className="flex justify-center p-8"><Loader2 className="animate-spin text-blue-600" /></div>
+                ) : (studentPayments.length === 0 && studentTransactions.length === 0) ? (
+                  <p className="text-center text-slate-400 py-8 italic">لا توجد سجلات مالية.</p>
+                ) : (
+                  [
+                    ...studentPayments.map(p => ({ ...p, type: 'payment' as const })),
+                    ...studentTransactions.map(t => ({ ...t, type: 'transaction' as const }))
+                  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((item, idx) => (
+                    <div key={idx} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-3 rounded-xl flex justify-between items-center shadow-sm hover:border-blue-200 transition-all">
+                      <div className="flex-1">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <span className={cn(
+                            "font-black",
+                            item.type === 'payment' ? "text-slate-900 dark:text-slate-100" : "text-blue-600"
+                          )}>
+                            {(item as any).amount?.toLocaleString() || (item as any).total_amount?.toLocaleString()} ₪
                           </span>
-                        )}
-                        {p.course_type && (
-                          <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-[10px] font-bold">
-                            {p.course_type}
+                          <span className={cn(
+                            "px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase",
+                            item.type === 'payment' ? "bg-slate-100 text-slate-600" : "bg-blue-50 text-blue-600"
+                          )}>
+                            {item.type === 'payment' ? 'دفعة اشتراك' : 'شراء منتجات'}
                           </span>
-                        )}
+                          {(item as any).course_type && (
+                            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-lg text-[9px] font-bold">
+                              {(item as any).course_type}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <p className="text-[10px] font-bold text-slate-500">{(item as any).month || (item as any).method || '-'} • {(item as any).date ? format(new Date((item as any).date), 'yyyy-MM-dd') : '-'}</p>
+                          {(item as any).notes && <p className="text-[10px] text-slate-400 italic">{(item as any).notes}</p>}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <p className="text-[10px] font-bold text-slate-500">{p.month || '-'} • {p.method}</p>
-                        {p.required_amount && p.required_amount > p.amount && (
-                          <span className="text-[10px] text-rose-600 font-bold bg-rose-50 dark:bg-rose-900/20 px-1.5 rounded">
-                            متبقي: {p.required_amount - p.amount} ₪
-                          </span>
-                        )}
-                      </div>
-                      {p.notes && <p className="text-[10px] text-slate-400 mt-1 italic leading-tight">{p.notes}</p>}
+                      {item.type === 'transaction' && (
+                        <div className="text-left">
+                          <span className="text-[10px] text-slate-400 block whitespace-nowrap">{(item as any).items?.length} أصناف</span>
+                        </div>
+                      )}
                     </div>
-                    <p className="text-xs text-slate-400 font-medium shrink-0">{format(new Date(p.date), 'yyyy-MM-dd')}</p>
-                  </div>
-                ))
-              )}
+                  ))
+                )}
+              </div>
             </div>
           </div>
         );
