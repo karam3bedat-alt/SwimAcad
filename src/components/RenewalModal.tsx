@@ -9,6 +9,7 @@ import { useSettings } from '../hooks/useSettings';
 import { format } from 'date-fns';
 import { DEFAULT_COURSE_PRICES, PaymentConfig } from '../services/paymentService';
 import { toast } from 'react-hot-toast';
+import { cn } from '../lib/utils';
 
 import { calculateTier } from '../services/firebaseService';
 
@@ -426,7 +427,7 @@ export function RenewalModal({ isOpen, onClose, student }: RenewalModalProps) {
               className="bg-white text-blue-600 px-8 py-4 rounded-2xl font-black hover:bg-slate-50 active:scale-95 transition-all flex items-center justify-center gap-2"
             >
               {isProcessing ? <RefreshCw className="animate-spin" size={20} /> : <RefreshCw size={20} />}
-              <span>تنفيذ العملية والحفظ</span>
+              <span>تأكيد الدفع</span>
             </button>
           </div>
         </div>

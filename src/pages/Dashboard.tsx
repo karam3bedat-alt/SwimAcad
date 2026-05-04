@@ -61,17 +61,32 @@ export default function Dashboard() {
 
     const revenueTrend = revenueLastMonth === 0 ? (revenueThisMonth > 0 ? 100 : 0) : Math.round(((revenueThisMonth - revenueLastMonth) / revenueLastMonth) * 100);
 
-    // 3. Status Distribution (Retention)
+    // 3. Trainer Growth
+    const trainersThisMonth = trainers.filter(t => {
+      if (!t.join_date) return false;
+      const d = new Date(t.join_date);
+      return d.getMonth() === thisMonth && d.getFullYear() === thisYear;
+    }).length;
+
+    const trainersLastMonth = trainers.filter(t => {
+      if (!t.join_date) return false;
+      const d = new Date(t.join_date);
+      return d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear;
+    }).length;
+
+    const trainerTrend = trainersLastMonth === 0 ? (trainersThisMonth > 0 ? 100 : 0) : Math.round(((trainersThisMonth - trainersLastMonth) / trainersLastMonth) * 100);
+
+    // 4. Activity (Status Distribution / Attendance)
     const activeStudents = students.filter(s => s.status !== 'غير نشط').length;
-    const retentionRate = students.length > 0 ? Math.round((activeStudents / students.length) * 100) : 0;
+    const activeRate = students.length > 0 ? Math.round((activeStudents / students.length) * 100) : 0;
 
     return {
       students: { value: `${Math.abs(studentTrend)}%`, isUp: studentTrend >= 0 },
       revenue: { value: `${Math.abs(revenueTrend)}%`, isUp: revenueTrend >= 0 },
-      trainers: { value: 'استقرار', isUp: true },
-      sessions: { value: 'نشط', isUp: true }
+      trainers: { value: `${Math.abs(trainerTrend)}%`, isUp: trainerTrend >= 0 },
+      sessions: { value: `${activeRate}%`, isUp: true }
     };
-  }, [students, payments]);
+  }, [students, payments, trainers, t]);
 
   const currentCoach = trainers.find(t => t.email === user?.email || t.id === user?.uid);
 

@@ -486,7 +486,7 @@ export const PaymentManager: React.FC = () => {
       <Modal
         isOpen={!!confirmingPayment}
         onClose={() => setConfirmingPayment(null)}
-        title="تأكيد استلام دفعة وتجديد اشتراك"
+        title="تسجيل عملية دفع"
       >
         {confirmingPayment && (
           <form onSubmit={async (e) => {
@@ -494,12 +494,24 @@ export const PaymentManager: React.FC = () => {
             const formData = new FormData(e.currentTarget);
             const amount = Number(formData.get('amount'));
             const method = formData.get('method') as string;
+            const type = formData.get('type') as string;
             const courseType = formData.get('course_type') as string;
+            const notes = formData.get('notes') as string;
             
             try {
               setIsProcessing(true);
               const currentPoints = confirmingPayment.loyalty_points || 0;
-              const usedDiscount = currentPoints >= 100;
+              
+              let paymentNotes = notes || '';
+              let usedDiscount = false;
+
+              if (type === 'subscription') {
+                usedDiscount = currentPoints >= 100;
+                if (usedDiscount) {
+                  paymentNotes = (paymentNotes ? paymentNotes + ' - ' : '') + 'تم استخدام خصم الولاء (100 شيقل)';
+                }
+              }
+
               const newPoints = usedDiscount ? (currentPoints - 100 + 10) : (currentPoints + 10);
 
               await addPayment({
@@ -508,20 +520,22 @@ export const PaymentManager: React.FC = () => {
                 amount: amount,
                 method: method,
                 month: selectedMonth,
-                course_type: courseType,
-                required_amount: confirmingPayment.requiredAmount,
+                course_type: type === 'subscription' ? courseType : (type === 'product' ? 'منتجات' : 'دفعة مخصصة'),
+                required_amount: type === 'subscription' ? confirmingPayment.requiredAmount : amount,
                 date: new Date().toISOString(),
-                notes: usedDiscount ? 'تم استخدام خصم الولاء (100 شيقل)' : ''
+                notes: paymentNotes
               });
 
-              // Update Student (course type and loyalty points)
-              await updateStudent({
-                id: confirmingPayment.id,
-                data: { 
-                  course_type: courseType,
-                  loyalty_points: newPoints
-                }
-              });
+              // Update Student if subscription
+              if (type === 'subscription') {
+                await updateStudent({
+                  id: confirmingPayment.id,
+                  data: { 
+                    course_type: courseType,
+                    loyalty_points: newPoints
+                  }
+                });
+              }
 
               const receiptNum = `REC-${Date.now()}-${confirmingPayment.id}`;
               const message = generatePaymentMessage(
@@ -535,53 +549,92 @@ export const PaymentManager: React.FC = () => {
               const link = createWhatsAppLink(confirmingPayment.phone || confirmingPayment.parent_phone || '', message);
               window.open(link, '_blank');
               
-              toast.success(`✅ تم تأكيد استلام دفع ${confirmingPayment.full_name}`);
+              toast.success(`✅ تم تسجيل الدفعة لـ ${confirmingPayment.full_name}`);
               setConfirmingPayment(null);
             } catch (err) {
-              toast.error('فشل تأكيد الدفعة');
+              toast.error('فشل تسجيل الدفعة');
             } finally {
               setIsProcessing(false);
             }
           }} className="space-y-4">
-            <div className="bg-blue-50 dark:bg-blue-900/10 p-4 rounded-xl border border-blue-100 dark:border-blue-800/30">
-              <p className="text-sm font-bold text-blue-600">تجديد اشتراك: {confirmingPayment.full_name}</p>
-              <p className="text-xs text-slate-500 mt-1">النقاط الحالية: {confirmingPayment.loyalty_points || 0}</p>
-              {confirmingPayment.loyalty_points >= 100 && (
-                <p className="text-xs text-emerald-600 font-bold mt-1">✨ مستحق لخصم الولاء (100 شيقل)</p>
-              )}
+            <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
+              <p className="text-sm font-bold text-slate-700 dark:text-slate-200">الاسم: {confirmingPayment.full_name}</p>
+              <p className="text-xs text-slate-500 mt-1">النقاط المتوفرة: {confirmingPayment.loyalty_points || 0}</p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-bold block text-right">خيار الدفع</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: 'subscription', label: 'تجديد اشتراك' },
+                  { id: 'product', label: 'شراء منتج' },
+                  { id: 'custom', label: 'دفعة مخصصة' }
+                ].map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => {
+                      // Update local state by re-setting confirmingPayment with type
+                      setConfirmingPayment({ ...confirmingPayment, paymentType: t.id });
+                    }}
+                    className={cn(
+                      "py-2 px-1 rounded-xl text-xs font-bold border transition-all",
+                      (confirmingPayment.paymentType || 'subscription') === t.id
+                        ? "bg-blue-600 border-blue-600 text-white shadow-md"
+                        : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600"
+                    )}
+                  >
+                    <input type="hidden" name="type" value={confirmingPayment.paymentType || 'subscription'} />
+                    {t.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-bold">نوع الدورة</label>
-                <select name="course_type" defaultValue={confirmingPayment.course_type} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2">
-                  {Object.keys(currentConfig.coursePrices).map(type => (
-                    <option key={type} value={type}>{type}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
+              {(confirmingPayment.paymentType === 'subscription' || !confirmingPayment.paymentType) && (
+                <div className="space-y-2">
+                  <label className="text-sm font-bold">نوع الدورة</label>
+                  <select name="course_type" defaultValue={confirmingPayment.course_type} className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-sm">
+                    {Object.keys(currentConfig.coursePrices).map(type => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div className={cn("space-y-2", (confirmingPayment.paymentType !== 'subscription' && confirmingPayment.paymentType) ? "col-span-2" : "")}>
                 <label className="text-sm font-bold">المبلغ المستلم (₪)</label>
-                <input name="amount" type="number" defaultValue={confirmingPayment.amount} required className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2" />
+                <input 
+                  name="amount" 
+                  type="number" 
+                  defaultValue={confirmingPayment.paymentType === 'subscription' ? confirmingPayment.requiredAmount : 0} 
+                  required 
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 font-bold text-center" 
+                />
               </div>
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-bold">طريقة الدفع</label>
-              <select name="method" className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2">
+              <select name="method" className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-sm">
                 <option value="نقدي">نقدي</option>
+                <option value="Bit">Bit</option>
+                <option value="PayBox">PayBox</option>
                 <option value="تحويل بنكي">تحويل بنكي</option>
-                <option value="بطاقة ائتمان">بطاقة ائتمان</option>
-                <option value="تطبيق محفظة">تطبيق محفظة</option>
               </select>
             </div>
 
+            <div className="space-y-2">
+              <label className="text-sm font-bold">ملاحظات (اختياري)</label>
+              <input name="notes" placeholder="أدخل أي ملاحظات إضافية..." className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-sm" />
+            </div>
+
             <div className="flex gap-3 pt-4">
-              <button type="submit" disabled={isProcessing} className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-700 disabled:opacity-50">
+              <button type="submit" disabled={isProcessing} className="flex-1 bg-blue-600 text-white py-4 rounded-xl font-black flex items-center justify-center gap-2 hover:bg-blue-700 disabled:opacity-50 transition-all">
                 {isProcessing ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
-                تأكيد الدفع والتجديد
+                تأكيد الدفع
               </button>
-              <button type="button" onClick={() => setConfirmingPayment(null)} className="px-6 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 py-3 rounded-xl font-bold">إلغاء</button>
+              <button type="button" onClick={() => setConfirmingPayment(null)} className="px-6 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 py-4 rounded-xl font-bold">إلغاء</button>
             </div>
           </form>
         )}
