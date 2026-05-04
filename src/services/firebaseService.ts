@@ -214,7 +214,8 @@ export const trainersService = {
   async add(trainerData: Omit<Coach, 'id'>): Promise<Coach> {
     const path = 'trainers';
     try {
-      const docRef = await addDoc(collection(db, path), trainerData);
+      const cleaned = cleanFirestoreData(trainerData);
+      const docRef = await addDoc(collection(db, path), cleaned);
       return { id: docRef.id, ...trainerData } as Coach;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, path);
@@ -226,9 +227,9 @@ export const trainersService = {
     const path = `trainers/${id}`;
     try {
       const docRef = doc(db, 'trainers', id);
-      const cleanData = JSON.parse(JSON.stringify(data));
+      const cleaned = cleanFirestoreData(data);
       await updateDoc(docRef, {
-        ...cleanData,
+        ...cleaned,
         updatedAt: new Date().toISOString()
       });
     } catch (error) {
@@ -289,8 +290,9 @@ export const sessionsService = {
   async add(sessionData: Omit<Session, 'id'>): Promise<Session> {
     const path = 'sessions';
     try {
+      const cleaned = cleanFirestoreData(sessionData);
       const docRef = await addDoc(collection(db, path), {
-        ...sessionData,
+        ...cleaned,
         createdAt: new Date().toISOString()
       });
       return { id: docRef.id, ...sessionData } as Session;
@@ -321,8 +323,9 @@ export const bookingsService = {
   async add(bookingData: Omit<Booking, 'id'>): Promise<Booking> {
     const path = 'bookings';
     try {
+      const cleaned = cleanFirestoreData(bookingData);
       const docRef = await addDoc(collection(db, path), {
-        ...bookingData,
+        ...cleaned,
         createdAt: new Date().toISOString()
       });
       return { id: docRef.id, ...bookingData } as Booking;
@@ -427,11 +430,11 @@ export const paymentsService = {
         // 2. PERFORM ALL WRITES SECOND
         const paymentRef = doc(collection(db, 'payments'));
         const date = new Date().toISOString();
-        const paymentRecord = {
+        const paymentRecord = cleanFirestoreData({
           ...paymentData,
           date,
           createdAt: date
-        };
+        });
         
         transaction.set(paymentRef, paymentRecord);
 
@@ -466,8 +469,9 @@ export const paymentsService = {
     const path = `payments/${id}`;
     try {
       const docRef = doc(db, 'payments', id);
+      const cleaned = cleanFirestoreData(data);
       await updateDoc(docRef, {
-        ...data,
+        ...cleaned,
         updatedAt: new Date().toISOString()
       });
     } catch (error) {
@@ -528,7 +532,8 @@ export const coachAttendanceService = {
         status: 'حاضر'
       };
 
-      const docRef = await addDoc(collection(db, path), attendanceData);
+      const cleaned = cleanFirestoreData(attendanceData);
+      const docRef = await addDoc(collection(db, path), cleaned);
       return { id: docRef.id, ...attendanceData };
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, path);
@@ -548,7 +553,8 @@ export const coachAttendanceService = {
         status: 'غائب'
       };
 
-      const docRef = await addDoc(collection(db, path), attendanceData);
+      const cleaned = cleanFirestoreData(attendanceData);
+      const docRef = await addDoc(collection(db, path), cleaned);
       return { id: docRef.id, ...attendanceData };
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, path);
@@ -593,8 +599,9 @@ export const coachAttendanceService = {
   async addManual(data: Omit<CoachAttendance, 'id'>): Promise<string> {
     const path = 'coach_attendance';
     try {
+      const cleaned = cleanFirestoreData(data);
       const docRef = await addDoc(collection(db, path), {
-        ...data,
+        ...cleaned,
         createdAt: new Date().toISOString()
       });
       return docRef.id;
@@ -626,7 +633,8 @@ export const settingsService = {
       const docRef = doc(db, 'settings', 'app_config');
       // Using setDoc with merge: true to create if doesn't exist
       const { setDoc } = await import('firebase/firestore');
-      await setDoc(docRef, data, { merge: true });
+      const cleaned = cleanFirestoreData(data);
+      await setDoc(docRef, cleaned, { merge: true });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
     }
@@ -653,8 +661,9 @@ export const productsService = {
   async add(productData: Omit<Product, 'id'>): Promise<Product> {
     const path = 'products';
     try {
+      const cleaned = cleanFirestoreData(productData);
       const docRef = await addDoc(collection(db, path), {
-        ...productData,
+        ...cleaned,
         createdAt: new Date().toISOString()
       });
       return { id: docRef.id, ...productData } as Product;
@@ -668,8 +677,9 @@ export const productsService = {
     const path = `products/${id}`;
     try {
       const docRef = doc(db, 'products', id);
+      const cleaned = cleanFirestoreData(data);
       await updateDoc(docRef, {
-        ...data,
+        ...cleaned,
         updatedAt: new Date().toISOString()
       });
     } catch (error) {
@@ -740,11 +750,11 @@ export const transactionsService = {
         // 2. PERFORM ALL WRITES
         const transRef = doc(collection(db, 'transactions'));
         const date = new Date().toISOString();
-        const transactionRecord = {
+        const transactionRecord = cleanFirestoreData({
           ...transactionData,
           date,
           createdAt: date
-        };
+        });
         
         txn.set(transRef, transactionRecord);
 
@@ -854,7 +864,8 @@ export const studentMediaService = {
   },
   async add(data: Omit<StudentMedia, 'id'>): Promise<string> {
     try {
-      const docRef = await addDoc(collection(db, 'student_media'), data);
+      const cleaned = cleanFirestoreData(data);
+      const docRef = await addDoc(collection(db, 'student_media'), cleaned);
       
       // Award 5 loyalty points for coach
       if (data.coach_id) {
@@ -893,7 +904,8 @@ export const studentEvaluationsService = {
   },
   async add(data: Omit<StudentEvaluation, 'id'>): Promise<string> {
     try {
-      const docRef = await addDoc(collection(db, 'student_evaluations'), data);
+      const cleaned = cleanFirestoreData(data);
+      const docRef = await addDoc(collection(db, 'student_evaluations'), cleaned);
       
       // Award 10 loyalty points for coach for detailed evaluation
       if (data.coach_id) {

@@ -1027,15 +1027,20 @@ export default function Attendance() {
                     const checkInDate = new Date(`${date}T${checkIn}`);
                     const checkOutDate = checkOut ? new Date(`${date}T${checkOut}`) : undefined;
                     
-                    await addCoachAttendanceMutation.mutateAsync({ 
+                    const attendancePayload: any = { 
                       coach_id: trainer.id,
                       coach_name: trainer.name,
                       date,
                       check_in: checkInDate.toISOString(),
-                      check_out: checkOutDate?.toISOString(),
                       lessons_count: lessons,
-                      status: 'حاضر'
-                    });
+                      status: 'حاضر' as const
+                    };
+                    
+                    if (checkOutDate) {
+                      attendancePayload.check_out = checkOutDate.toISOString();
+                    }
+
+                    await addCoachAttendanceMutation.mutateAsync(attendancePayload);
                     
                     toast.success('تمت الإضافة بنجاح', { id: toastId });
                     refetchBookings();
