@@ -15,7 +15,7 @@ import {
   getDoc
 } from 'firebase/firestore';
 
-import { Student, Coach, Session, Booking, Payment, AppSettings, CoachAttendance, StudentEvaluation, StudentMedia } from '../types';
+import { Student, Coach, Session, Booking, Payment, AppSettings, CoachAttendance, StudentEvaluation, StudentMedia, Product, Transaction, TransactionItem } from '../types';
 
 enum OperationType {
   CREATE = 'create',
@@ -44,6 +44,26 @@ interface FirestoreErrorInfo {
     }[];
   }
 }
+
+export const logLoyaltyPoints = async (studentId: string, points: number, reason: string, type: 'earned' | 'spent') => {
+  try {
+    const logRef = collection(db, 'students', studentId, 'points_history');
+    await addDoc(logRef, {
+      points,
+      reason,
+      type,
+      date: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error logging points:', error);
+  }
+};
+
+export const calculateTier = (lifetimePoints: number): 'برونزي' | 'فضي' | 'ذهبي' => {
+  if (lifetimePoints >= 1501) return 'ذهبي';
+  if (lifetimePoints >= 501) return 'فضي';
+  return 'برونزي';
+};
 
 function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errInfo: FirestoreErrorInfo = {
@@ -116,9 +136,15 @@ export const studentsService = {
       const cleaned = cleanFirestoreData(studentData);
       const docRef = await addDoc(collection(db, path), {
         ...cleaned,
+        current_points: 50, // 50 welcome points
+        lifetime_points: 50,
+        loyalty_tier: 'برونزي',
         createdAt: new Date().toISOString()
       });
-      return { id: docRef.id, ...studentData } as Student;
+      
+      await logLoyaltyPoints(docRef.id, 50, 'نقاط ترحيبية للتسجيل الجديد', 'earned');
+
+      return { id: docRef.id, ...studentData, current_points: 50, lifetime_points: 50, loyalty_tier: 'برونزي' } as Student;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, path);
       throw error;
@@ -310,7 +336,45 @@ export const bookingsService = {
     const path = `bookings/${id}`;
     try {
       const docRef = doc(db, 'bookings', id);
-      await updateDoc(docRef, { status });
+      const bookingSnap = await getDoc(docRef);
+      const bookingData = bookingSnap.data() as Booking;
+
+      await runTransaction(db, async (transaction) => {
+        transaction.update(docRef, { status });
+
+        // If attended, award points
+        if (status === 'حضر' && bookingData.status !== 'حضر') {
+          const studentRef = doc(db, 'students', bookingData.student_id);
+          const studentSnap = await transaction.get(studentRef);
+          
+          if (studentSnap.exists()) {
+            const student = studentSnap.data() as Student;
+            const pointsEarned = 5; // Attendance point
+            
+            // Check for streak (8 sessions)
+            // This is simplified here, but in a real app would check previous 7 bookings
+            
+            const newLifetime = (student.lifetime_points || 0) + pointsEarned;
+            const newTier = calculateTier(newLifetime);
+
+            transaction.update(studentRef, {
+              current_points: increment(pointsEarned),
+              lifetime_points: increment(pointsEarned),
+              loyalty_tier: newTier,
+              updatedAt: new Date().toISOString()
+            });
+
+            // Log History
+            const logRef = doc(collection(db, 'students', bookingData.student_id, 'points_history'));
+            transaction.set(logRef, {
+              points: pointsEarned,
+              reason: 'حضور حصة تدريبية',
+              type: 'earned',
+              date: new Date().toISOString()
+            });
+          }
+        }
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
     }
@@ -565,6 +629,210 @@ export const settingsService = {
       await setDoc(docRef, data, { merge: true });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
+    }
+  }
+};
+
+// خدمة المنتجات والمخزون
+export const productsService = {
+  async getAll(): Promise<Product[]> {
+    const path = 'products';
+    try {
+      const q = query(collection(db, path), orderBy('name'));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as Product));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, path);
+      return [];
+    }
+  },
+
+  async add(productData: Omit<Product, 'id'>): Promise<Product> {
+    const path = 'products';
+    try {
+      const docRef = await addDoc(collection(db, path), {
+        ...productData,
+        createdAt: new Date().toISOString()
+      });
+      return { id: docRef.id, ...productData } as Product;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, path);
+      throw error;
+    }
+  },
+
+  async update(id: string, data: Partial<Product>): Promise<void> {
+    const path = `products/${id}`;
+    try {
+      const docRef = doc(db, 'products', id);
+      await updateDoc(docRef, {
+        ...data,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, path);
+    }
+  },
+
+  async delete(id: string) {
+    const path = `products/${id}`;
+    try {
+      const docRef = doc(db, 'products', id);
+      await deleteDoc(docRef);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, path);
+    }
+  }
+};
+
+// خدمة المعاملات الشاملة
+export const transactionsService = {
+  async getAll(): Promise<Transaction[]> {
+    const path = 'transactions';
+    try {
+      const q = query(collection(db, path), orderBy('date', 'desc'));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as Transaction));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, path);
+      return [];
+    }
+  },
+
+  async add(transactionData: Omit<Transaction, 'id'>): Promise<Transaction> {
+    const path = 'transactions';
+    try {
+      const { runTransaction, increment } = await import('firebase/firestore');
+      
+      let createdTransaction: Transaction | null = null;
+      
+      await runTransaction(db, async (txn) => {
+        // 1. PERFORM ALL READS
+        let studentDoc = null;
+        let studentRef = null;
+        if (transactionData.student_id) {
+          studentRef = doc(db, 'students', transactionData.student_id);
+          studentDoc = await txn.get(studentRef);
+        }
+
+        // Get products to check/update stock
+        const productItems = transactionData.items.filter(item => item.type === 'product');
+        const productRefs = productItems.map(item => ({
+          ref: doc(db, 'products', item.id),
+          quantity: item.quantity
+        }));
+
+        for (const p of productRefs) {
+          const pDoc = await txn.get(p.ref);
+          if (!pDoc.exists()) throw new Error(`المنتج غير موجود`);
+          const product = pDoc.data() as Product;
+          if (product.stock < p.quantity) {
+            throw new Error(`المخزون غير كافٍ للمنتج: ${product.name}`);
+          }
+        }
+
+        // 2. PERFORM ALL WRITES
+        const transRef = doc(collection(db, 'transactions'));
+        const date = new Date().toISOString();
+        const transactionRecord = {
+          ...transactionData,
+          date,
+          createdAt: date
+        };
+        
+        txn.set(transRef, transactionRecord);
+
+        // Update Stock
+        for (const p of productRefs) {
+          txn.update(p.ref, {
+            stock: increment(-p.quantity),
+            updatedAt: new Date().toISOString()
+          });
+        }
+
+        // Update Student Loyalty Points
+        if (studentDoc?.exists()) {
+          const student = studentDoc.data() as Student;
+          
+          // Logic for points:
+          // 1. Subscription points: 10 points per 10 currency spent (1:1 ratio effectively for currency units)
+          // Actually user said: 10 points per 10 units = 1 point per 1 unit.
+          // 2. Product points: 1 point per 1 unit.
+          // 3. Early renewal: 25 points if renewed 3 days early.
+          
+          const subscriptionTotal = transactionData.items
+            .filter(i => i.type === 'subscription')
+            .reduce((sum, i) => sum + i.total, 0);
+          
+          const productTotal = transactionData.items
+            .filter(i => i.type === 'product')
+            .reduce((sum, i) => sum + i.total, 0);
+
+          let pointsEarned = Math.floor(subscriptionTotal) + Math.floor(productTotal);
+
+          // Check early renewal (simplified: if student has end_date and now < end_date - 3 days)
+          if (student.subscription_end_date) {
+            const endDate = new Date(student.subscription_end_date);
+            const now = new Date();
+            const threeDaysBefore = new Date(endDate);
+            threeDaysBefore.setDate(threeDaysBefore.getDate() - 3);
+            
+            if (now < threeDaysBefore) {
+              pointsEarned += 25; // Early renewal bonus
+            }
+          }
+
+          let pointsChange = pointsEarned;
+          if (transactionData.loyalty_points_used && transactionData.loyalty_points_used > 0) {
+            pointsChange = pointsEarned - transactionData.loyalty_points_used;
+          }
+          
+          const newLifetimePoints = (student.lifetime_points || 0) + pointsEarned;
+          const newTier = calculateTier(newLifetimePoints);
+
+          txn.update(studentRef!, {
+            current_points: increment(pointsChange),
+            lifetime_points: increment(pointsEarned),
+            loyalty_tier: newTier,
+            updatedAt: new Date().toISOString()
+          });
+
+          // Record earned points in transaction
+          txn.update(transRef, { loyalty_points_earned: pointsEarned });
+
+          // Log History
+          const logRef = doc(collection(db, 'students', transactionData.student_id, 'points_history'));
+          txn.set(logRef, {
+            points: pointsEarned,
+            reason: 'عملية شراء وتجديد',
+            type: 'earned',
+            date: new Date().toISOString()
+          });
+
+          if (transactionData.loyalty_points_used && transactionData.loyalty_points_used > 0) {
+            const spendRef = doc(collection(db, 'students', transactionData.student_id, 'points_history'));
+            txn.set(spendRef, {
+              points: transactionData.loyalty_points_used,
+              reason: 'استبدال مكافأة',
+              type: 'spent',
+              date: new Date().toISOString()
+            });
+          }
+        }
+        
+        createdTransaction = { id: transRef.id, ...transactionRecord } as Transaction;
+      });
+      
+      return createdTransaction!;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, path);
+      throw error;
     }
   }
 };

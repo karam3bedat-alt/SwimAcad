@@ -24,7 +24,9 @@
         "level": { "type": "string" },
         "medical_notes": { "type": "string" },
         "registration_date": { "type": "string" },
-        "loyalty_points": { "type": "number" },
+        "current_points": { "type": "number" },
+        "lifetime_points": { "type": "number" },
+        "loyalty_tier": { "type": "string", "enum": ["برونزي", "فضي", "ذهبي"] },
         "assigned_coach_id": { "type": "string" },
         "course_id": { "type": "string", "description": "Linked course cycle ID" },
         "subscription_model": { "type": "string", "enum": ["monthly", "credit", "rolling"] },
@@ -144,7 +146,7 @@
     },
     "Payment": {
       "title": "Payment",
-      "description": "Payment record",
+      "description": "Legacy payment record",
       "type": "object",
       "properties": {
         "student_id": { "type": "string" },
@@ -155,6 +157,46 @@
         "notes": { "type": "string" }
       },
       "required": ["student_id", "amount", "date"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Product for sale",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "stock": { "type": "number" },
+        "category": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["name", "price", "stock"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Unified financial transaction",
+      "type": "object",
+      "properties": {
+        "student_id": { "type": "string" },
+        "student_name": { "type": "string" },
+        "total_amount": { "type": "number" },
+        "date": { "type": "string" },
+        "method": { "type": "string" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "type": { "type": "string" },
+              "name": { "type": "string" },
+              "quantity": { "type": "number" },
+              "price": { "type": "number" },
+              "total": { "type": "number" }
+            }
+          }
+        }
+      },
+      "required": ["student_id", "total_amount", "date", "method", "items"]
     },
     "AcademyConfig": {
       "title": "AcademyConfig",
@@ -214,6 +256,14 @@
     "/settings/app_config": {
       "schema": "AcademyConfig",
       "description": "Global academy settings"
+    },
+    "/products/{id}": {
+      "schema": "Product",
+      "description": "Product catalog and stock"
+    },
+    "/transactions/{id}": {
+      "schema": "Transaction",
+      "description": "Unified transaction records"
     }
   }
 }

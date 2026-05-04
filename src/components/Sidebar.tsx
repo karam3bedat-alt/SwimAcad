@@ -20,7 +20,8 @@ import {
   Bell,
   Languages,
   Settings,
-  Layout
+  Layout,
+  ShoppingCart
 } from 'lucide-react';
 import { auth } from '../firebase';
 import { signOut } from 'firebase/auth';
@@ -47,6 +48,7 @@ export function Sidebar() {
     { name: t('courses'), path: '/courses', icon: Layout, roles: ['admin'] },
     { name: t('payments'), path: '/payments', icon: CreditCard, roles: ['admin'] },
     { name: t('notifications'), path: '/notifications', icon: Bell, roles: ['admin'] },
+    { name: 'المتجر والمخزون', path: '/products', icon: ShoppingCart, roles: ['admin'] },
     { name: t('reports'), path: '/reports', icon: BarChart3, roles: ['admin'] },
     { name: t('settings'), path: '/settings', icon: Settings, roles: ['admin'] },
   ];

@@ -18,6 +18,7 @@ import Settings from './pages/Settings';
 import CoachProfile from './pages/CoachProfile';
 import Courses from './pages/Courses';
 import { PaymentPage } from './pages/PaymentPage';
+import { ProductManagement } from './pages/ProductManagement';
 import Login from './pages/Login';
 import { Toaster } from 'react-hot-toast';
 import { ThemeProvider } from './context/ThemeContext';
@@ -58,6 +59,7 @@ function AppContent() {
               <Route path="/reports" element={<ProtectedRoute allowedRoles={['admin']}><Reports /></ProtectedRoute>} />
               <Route path="/notifications" element={<ProtectedRoute allowedRoles={['admin']}><Notifications /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute allowedRoles={['admin']}><Settings /></ProtectedRoute>} />
+              <Route path="/products" element={<ProtectedRoute allowedRoles={['admin']}><ProductManagement /></ProtectedRoute>} />
               
               {/* Public Payment Route */}
               <Route path="/payment" element={<PaymentPage />} />

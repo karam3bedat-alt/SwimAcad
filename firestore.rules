@@ -98,5 +98,16 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
+
+    match /products/{productId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /transactions/{transactionId} {
+      allow read, list: if isAdmin();
+      allow create: if isAdmin() || isCoach();
+      allow update, delete: if isAdmin();
+    }
   }
 }

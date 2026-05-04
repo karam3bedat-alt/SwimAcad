@@ -10,7 +10,10 @@ export interface Student {
   parent_phone?: string;
   medical_notes: string;
   registration_date: string;
-  loyalty_points?: number;
+  loyalty_points?: number; // legacy
+  current_points?: number;
+  lifetime_points?: number;
+  loyalty_tier?: 'برونزي' | 'فضي' | 'ذهبي';
   birth_date?: string;
   assigned_coach_id?: string;
   course_id?: string;
@@ -140,6 +143,39 @@ export interface PaymentConfig {
   academyName: string;
   academyPhone: string;
   coursePrices?: Record<string, number>;
+}
+
+export interface TransactionItem {
+  id: string; // Product ID or 'subscription'
+  type: 'subscription' | 'product';
+  name: string;
+  quantity: number;
+  price: number;
+  total: number;
+}
+
+export interface Transaction {
+  id: string;
+  student_id: string;
+  student_name: string;
+  items: TransactionItem[];
+  total_amount: number;
+  date: string;
+  method: 'cash' | 'bit' | 'paybox' | 'transfer';
+  notes?: string;
+  received_by?: string;
+  loyalty_points_earned?: number;
+  loyalty_points_used?: number;
+}
+
+export interface Product {
+  id: string;
+  name: string;
+  price: number;
+  stock: number;
+  category: string;
+  image_url?: string;
+  description?: string;
 }
 
 export interface AppSettings {

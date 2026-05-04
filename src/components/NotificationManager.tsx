@@ -2,15 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { useStudents } from '../hooks/useStudents';
 import { usePayments } from '../hooks/usePayments';
 import { useBookings } from '../hooks/useBookings';
+import { useProducts } from '../hooks/useProducts';
 import { useSettings } from '../hooks/useSettings';
 import { scheduler, ScheduledNotification } from '../services/schedulerService';
-import { Bell, Send, Calendar, AlertTriangle, CheckCircle, MessageCircle, Loader2 } from 'lucide-react';
+import { Bell, Send, Calendar, AlertTriangle, CheckCircle, MessageCircle, Loader2, ShoppingCart } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export const NotificationManager: React.FC = () => {
   const { data: students, isLoading: loadingStudents } = useStudents();
   const { data: payments, isLoading: loadingPayments } = usePayments();
   const { data: bookings } = useBookings();
+  const { data: products } = useProducts();
   const { data: settings } = useSettings();
   
   const [currentMonth, setCurrentMonth] = useState(
@@ -25,6 +27,7 @@ export const NotificationManager: React.FC = () => {
 
   const [overdueList, setOverdueList] = useState<{ student: any; daysOverdue: number; amount: number; originalAmount?: number; dueDate: string }[]>([]);
   const [absenceAlerts, setAbsenceAlerts] = useState<{ student: any; consecutiveDays: number }[]>([]);
+  const [lowStockAlerts, setLowStockAlerts] = useState<any[]>([]);
   const [scheduledNotifications, setScheduledNotifications] = useState<ScheduledNotification[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -44,6 +47,14 @@ export const NotificationManager: React.FC = () => {
       setAbsenceAlerts(alerts);
     }
   }, [students, bookings]);
+
+  // Detect low stock
+  useEffect(() => {
+    if (products) {
+      const lowStock = products.filter(p => p.stock <= 5);
+      setLowStockAlerts(lowStock);
+    }
+  }, [products]);
 
   // Generate notifications
   const generateNotifications = () => {
@@ -152,6 +163,15 @@ export const NotificationManager: React.FC = () => {
           </div>
           <p className="text-3xl font-bold text-rose-600 dark:text-rose-500">{absenceAlerts.length}</p>
           <p className="text-sm text-rose-600 dark:text-rose-400">طالب غائب أكثر من مرتين متتاليتين</p>
+        </div>
+
+        <div className="bg-amber-50 dark:bg-amber-900/10 p-6 rounded-2xl border border-amber-200 dark:border-amber-800/50">
+          <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 mb-2">
+            <ShoppingCart size={20} />
+            <span className="font-bold">نواقص المخزون</span>
+          </div>
+          <p className="text-3xl font-bold text-amber-600 dark:text-amber-500">{lowStockAlerts.length}</p>
+          <p className="text-sm text-amber-600 dark:text-amber-400">منتجات شارفت على النفاذ</p>
         </div>
         
         <div className="bg-emerald-50 dark:bg-emerald-900/10 p-6 rounded-2xl border border-emerald-200 dark:border-emerald-800/50">

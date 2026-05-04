@@ -55,7 +55,31 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
               <InfoCard icon={Award} label="المستوى الحالي" value={student.level} />
               <InfoCard icon={Star} label="نوع الدورة" value={student.course_type || 'غير محدد'} />
               <InfoCard icon={Clock} label="العمر" value={`${student.age} سنة`} />
-              <InfoCard icon={Award} label="نقاط الولاء" value={`${student.loyalty_points || 0} نقطة`} />
+              <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 p-4 rounded-xl border border-amber-100 dark:border-amber-800 shadow-sm md:col-span-2">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-amber-100 dark:bg-amber-800 rounded-lg flex items-center justify-center text-amber-600 dark:text-amber-400">
+                      <Award size={20} />
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] font-bold text-amber-600/70 uppercase tracking-wider block">نظام الولاء والمكافآت</span>
+                      <span className="text-sm font-black text-amber-800 dark:text-amber-400">المستوى: {student.loyalty_tier || 'برونزي'}</span>
+                    </div>
+                  </div>
+                  <div className="text-left">
+                    <p className="text-xl font-black text-amber-600">{(student.current_points !== undefined ? student.current_points : student.loyalty_points) || 0} <span className="text-xs">نقطة</span></p>
+                    <p className="text-[10px] text-slate-500">الإجمالي: {student.lifetime_points || 0}</p>
+                  </div>
+                </div>
+                <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                  <div 
+                   className="bg-amber-500 h-full transition-all duration-1000" 
+                   style={{ 
+                     width: `${Math.min(100, (((student.lifetime_points || 0) % 500) / 500) * 100)}%` 
+                   }} 
+                  />
+                </div>
+              </div>
               <InfoCard 
                 icon={RefreshCw} 
                 label="نظام الاشتراك" 

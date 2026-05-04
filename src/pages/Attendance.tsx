@@ -26,6 +26,8 @@ import { useAuth } from '../AuthContext';
 import { scheduler } from '../services/schedulerService';
 import { CoachAttendance } from '../types';
 
+import { logLoyaltyPoints } from '../services/firebaseService';
+
 export default function Attendance() {
   const { t } = useI18n();
   const { user, isAdmin, isCoach } = useAuth();
@@ -508,6 +510,32 @@ export default function Attendance() {
                     
                     <div className="flex items-center gap-2">
                       <button
+                        onClick={async () => {
+                          const toastId = toast.loading('جاري منح نقطة التميز...');
+                          try {
+                            const newLifetimePoints = (student.lifetime_points || 0) + 20;
+                            const newTier = (newLifetimePoints >= 1501) ? 'ذهبي' : (newLifetimePoints >= 501) ? 'فضي' : 'برونزي';
+                            
+                            await updateStudentMutation.mutateAsync({
+                              id: student.id,
+                              data: {
+                                current_points: (student.current_points || student.loyalty_points || 0) + 20,
+                                lifetime_points: newLifetimePoints,
+                                loyalty_tier: newTier
+                              }
+                            });
+                            await logLoyaltyPoints(student.id, 20, 'جائزة نجم الحصة', 'earned');
+                            toast.success(`تم منح 20 نقطة تميز لـ ${student.full_name}`, { id: toastId });
+                          } catch (err) {
+                            toast.error('فشل منح النقاط', { id: toastId });
+                          }
+                        }}
+                        className="p-2 text-amber-500 hover:bg-amber-50 rounded-xl transition-all"
+                        title="نجم الحصة (+20 نقطة)"
+                      >
+                        <Award size={20} />
+                      </button>
+                      <button
                         onClick={() => handleStatusUpdate(student.id, 'حضر')}
                         className={cn(
                           "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all",
@@ -764,7 +792,33 @@ export default function Attendance() {
                         <span className="text-xs text-slate-500">{student.level}</span>
                       </td>
                       <td className="px-6 py-3">
-                        <div className="flex justify-center gap-2">
+                        <div className="flex justify-center gap-2 items-center">
+                          <button
+                            onClick={async () => {
+                              const toastId = toast.loading('جاري منح نقطة التميز...');
+                              try {
+                                const newLifetimePoints = (student.lifetime_points || 0) + 20;
+                                const newTier = (newLifetimePoints >= 1501) ? 'ذهبي' : (newLifetimePoints >= 501) ? 'فضي' : 'برونزي';
+                                
+                                await updateStudentMutation.mutateAsync({
+                                  id: student.id,
+                                  data: {
+                                    current_points: (student.current_points || student.loyalty_points || 0) + 20,
+                                    lifetime_points: newLifetimePoints,
+                                    loyalty_tier: newTier
+                                  }
+                                });
+                                await logLoyaltyPoints(student.id, 20, 'جائزة نجم الحصة', 'earned');
+                                toast.success(`تم منح 20 نقطة تميز لـ ${student.full_name}`, { id: toastId });
+                              } catch (err) {
+                                toast.error('فشل منح النقاط', { id: toastId });
+                              }
+                            }}
+                            className="p-1.5 text-amber-500 hover:bg-amber-50 rounded-lg transition-all"
+                            title="نجم الحصة (+20 نقطة)"
+                          >
+                            <Award size={16} />
+                          </button>
                           <button
                             onClick={() => handleStatusUpdate(student.id, 'حضر')}
                             className={cn(

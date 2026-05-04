@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { FileDown, BarChart3, Users, CreditCard, Clock, Calendar, Search, DollarSign, TrendingUp } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { FileDown, BarChart3, Users, CreditCard, Clock, Calendar, Search, DollarSign, TrendingUp, ShoppingCart } from 'lucide-react';
 import { exportToExcel } from '../lib/utils';
 import { Card } from '../components/Card';
 import { useStudents } from '../hooks/useStudents';
 import { usePayments } from '../hooks/usePayments';
+import { useTransactions } from '../hooks/useTransactions';
 import { useBookings } from '../hooks/useBookings';
 import { useCoachAttendance } from '../hooks/useTrainers';
 import { 
@@ -17,6 +18,7 @@ import {
 export default function Reports() {
   const { data: students = [] } = useStudents();
   const { data: payments = [] } = usePayments();
+  const { data: transactions = [] } = useTransactions();
   const { data: bookings = [] } = useBookings();
   const { data: coachAttendance = [] } = useCoachAttendance();
 
@@ -65,6 +67,7 @@ export default function Reports() {
 
   const filteredStudents = filterData(students);
   const filteredPayments = filterData(payments);
+  const filteredTransactions = filterData(transactions);
   const filteredBookings = filterData(bookings);
   const filteredCoachAttendance = filterData(coachAttendance);
 
@@ -164,6 +167,53 @@ export default function Reports() {
     }));
     exportToExcel(data, 'تقرير_الحضور_المفصل');
   };
+
+  const handleExportProductSales = () => {
+    const data = filteredTransactions.flatMap(t => 
+      t.items.filter(i => i.type === 'product').map(i => ({
+        'التاريخ': new Date(t.date).toLocaleDateString('ar-EG'),
+        'اسم الطالب': t.student_name,
+        'المنتج': i.name,
+        'الكمية': i.quantity,
+        'السعر الفردي': i.price,
+        'الإجمالي': i.total,
+        'طريقة الدفع': t.method
+      }))
+    );
+    exportToExcel(data, 'تقرير_مبيعات_المنتجات');
+  };
+
+  const productStats = useMemo(() => {
+    const stats: { [name: string]: { quantity: number, total: number } } = {};
+    filteredTransactions.forEach(t => {
+      t.items.forEach(item => {
+        if (item.type === 'product') {
+          if (!stats[item.name]) stats[item.name] = { quantity: 0, total: 0 };
+          stats[item.name].quantity += item.quantity;
+          stats[item.name].total += item.total;
+        }
+      });
+    });
+    return Object.entries(stats)
+      .sort(([, a], [, b]) => b.quantity - a.quantity)
+      .slice(0, 5);
+  }, [filteredTransactions]);
+
+  const revenueSplit = useMemo(() => {
+    let subs = 0;
+    let prods = 0;
+    filteredTransactions.forEach(t => {
+      t.items.forEach(item => {
+        if (item.type === 'subscription') subs += item.total;
+        else if (item.type === 'product') prods += item.total;
+      });
+    });
+    // Add legacy payments to subs
+    filteredPayments.forEach(p => {
+       subs += (Number(p.amount) || 0);
+    });
+    return { subs, prods };
+  }, [filteredTransactions, filteredPayments]);
 
   return (
     <div className="space-y-8">
@@ -296,6 +346,27 @@ export default function Reports() {
 
         <Card className="hover:shadow-md transition-shadow">
           <div className="flex flex-col items-center text-center py-4">
+            <div className="w-16 h-16 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center mb-4">
+              <ShoppingCart size={32} />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 mb-1">مبيعات المنتجات</h3>
+            <p className="text-xs text-purple-600 mb-6 font-bold">
+              إجمالي المبيعات: {revenueSplit.prods.toLocaleString()} ₪
+            </p>
+            <div className="w-full space-y-2">
+              <button 
+                onClick={handleExportProductSales}
+                className="w-full bg-purple-600 text-white py-2 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-purple-700 transition-colors text-sm"
+              >
+                <FileDown size={16} />
+                تصدير مبيعات المنتجات
+              </button>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="hover:shadow-md transition-shadow">
+          <div className="flex flex-col items-center text-center py-4">
             <div className="w-16 h-16 bg-orange-50 text-orange-600 rounded-2xl flex items-center justify-center mb-4">
               <Clock size={32} />
             </div>
@@ -342,6 +413,71 @@ export default function Reports() {
                 <FileDown size={14} />
                 تصدير Excel
               </button>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <Card title="مبيعات المنتجات الأكثر طلباً">
+          <div className="space-y-4">
+            {productStats.map(([name, stats], index) => (
+              <div key={name} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-4">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 font-bold text-xs">
+                    {index + 1}
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">{name}</p>
+                    <p className="text-[10px] text-slate-500">{stats.quantity} قطعة تم بيعها</p>
+                  </div>
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-black text-blue-600">{stats.total.toLocaleString()} ₪</p>
+                </div>
+              </div>
+            ))}
+            {productStats.length === 0 && (
+              <div className="py-12 text-center text-slate-400 opacity-50 italic text-sm">
+                لا يوجد بيانات مبيعات منتجات في هذه الفترة.
+              </div>
+            )}
+          </div>
+        </Card>
+
+        <Card title="توزيع دخل الأكاديمية">
+          <div className="space-y-6">
+            <div className="flex justify-between items-center bg-blue-50 dark:bg-blue-900/20 p-6 rounded-3xl">
+              <div className="text-right">
+                <p className="text-xs font-bold text-blue-600/70 mb-1">إيرادات الاشتراكات</p>
+                <p className="text-2xl font-black text-blue-900 dark:text-white">{revenueSplit.subs.toLocaleString()} ₪</p>
+              </div>
+              <div className="text-left">
+                <p className="text-[10px] font-bold text-blue-600 bg-white dark:bg-slate-800 px-2 py-1 rounded-lg">
+                  {revenueSplit.subs + revenueSplit.prods > 0 
+                  ? ((revenueSplit.subs / (revenueSplit.subs + revenueSplit.prods)) * 100).toFixed(1)
+                  : 0}%
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center bg-purple-50 dark:bg-purple-900/20 p-6 rounded-3xl">
+              <div className="text-right">
+                <p className="text-xs font-bold text-purple-600/70 mb-1">إيرادات المنتجات</p>
+                <p className="text-2xl font-black text-purple-900 dark:text-white">{revenueSplit.prods.toLocaleString()} ₪</p>
+              </div>
+              <div className="text-left">
+                <p className="text-[10px] font-bold text-purple-600 bg-white dark:bg-slate-800 px-2 py-1 rounded-lg">
+                  {revenueSplit.subs + revenueSplit.prods > 0 
+                  ? ((revenueSplit.prods / (revenueSplit.subs + revenueSplit.prods)) * 100).toFixed(1)
+                  : 0}%
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-900 dark:bg-slate-950 rounded-2xl flex justify-between items-center">
+               <span className="text-xs font-bold text-slate-400">إجمالي الدخل الموحد:</span>
+               <span className="text-lg font-black text-white">{(revenueSplit.subs + revenueSplit.prods).toLocaleString()} ₪</span>
             </div>
           </div>
         </Card>
