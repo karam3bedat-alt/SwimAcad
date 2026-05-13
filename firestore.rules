@@ -109,5 +109,10 @@ service cloud.firestore {
       allow create: if isAdmin() || isCoach();
       allow update, delete: if isAdmin();
     }
+
+    match /insights/{insightId} {
+      allow read, list: if isSignedIn();
+      allow write: if isAdmin();
+    }
   }
 }

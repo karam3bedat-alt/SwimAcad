@@ -1,5 +1,6 @@
 {
   "name": "sharks olympice academy",
   "description": "نظام متكامل لإدارة أكاديمية Sharks Olympic للسباحة يشمل إدارة الطلاب، المدربين، الحصص، والمدفوعات.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

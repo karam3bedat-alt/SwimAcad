@@ -5,6 +5,7 @@ import { useDashboardStats } from '../hooks/useDashboard';
 import StatsCharts from '../components/StatsCharts';
 import { SmartInsights } from '../components/SmartInsights';
 import { useStudents } from '../hooks/useStudents';
+import { useAutoManagement } from '../hooks/useAutoManagement';
 import { usePayments } from '../hooks/usePayments';
 import { useTrainers, useCoachAttendance, useCoachCheckIn, useCoachCheckOut } from '../hooks/useTrainers';
 import { useAuth } from '../AuthContext';
@@ -15,6 +16,7 @@ import { format } from 'date-fns';
 export default function Dashboard() {
   const { data: stats, isLoading: statsLoading, error } = useDashboardStats();
   const { data: students = [] } = useStudents();
+  useAutoManagement();
   const { data: payments = [] } = usePayments();
   const { data: trainers = [] } = useTrainers();
   const { t, language } = useI18n();

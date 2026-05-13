@@ -210,6 +210,29 @@
         "bankName": { "type": "string" },
         "bankAccount": { "type": "string" }
       }
+    },
+    "SmartInsight": {
+      "title": "SmartInsight",
+      "description": "AI or system generated insight",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "desc": { "type": "string" },
+        "type": { "type": "string", "enum": ["warning", "info", "success"] },
+        "category": { "type": "string", "enum": ["warning", "suggestion"] },
+        "id": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "actionType": { "type": "string" }
+      },
+      "required": ["title", "desc", "category"]
+    },
+    "InsightMetadata": {
+      "title": "InsightMetadata",
+      "description": "Metadata for smart insights",
+      "type": "object",
+      "properties": {
+        "lastUpdated": { "type": "string" }
+      }
     }
   },
   "firestore": {
@@ -264,6 +287,14 @@
     "/transactions/{id}": {
       "schema": "Transaction",
       "description": "Unified transaction records"
+    },
+    "/insights/{id}": {
+      "schema": "SmartInsight",
+      "description": "Storage for daily generated insights"
+    },
+    "/settings/insights_metadata": {
+      "schema": "InsightMetadata",
+      "description": "Global metadata for insights (last update time)"
     }
   }
 }
