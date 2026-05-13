@@ -13,6 +13,8 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Student, Payment, Booking, Coach } from '../types';
+import { format } from 'date-fns';
+import { ar } from 'date-fns/locale';
 
 export interface SmartInsight {
   id: string;
@@ -68,11 +70,40 @@ export const insightService = {
         name: s.full_name,
         remaining: s.remaining_sessions
       })),
-      pendingPayments: data.payments.filter(p => (p.required_amount || 0) > (p.amount || 0)).map(p => ({
-        studentName: p.student_name,
-        amountDue: (p.required_amount || 0) - (p.amount || 0),
-        course: p.course_type
-      })),
+      pendingPayments: (() => {
+        const groups: Record<string, { total: number, required: number, name: string, course: string, month: string }> = {};
+        const targetMonth = format(today, 'MMMM yyyy', { locale: ar });
+        
+        data.payments.forEach(p => {
+          if (!p.student_id) return;
+          const key = `${p.student_id}_${p.month || 'all'}`;
+          if (!groups[key]) {
+            groups[key] = { 
+              total: 0, 
+              required: 0, 
+              name: p.student_name || 'Unknown', 
+              course: p.course_type || '-',
+              month: p.month || 'Other'
+            };
+          }
+          groups[key].total += (p.amount || 0);
+          groups[key].required = Math.max(groups[key].required, p.required_amount || 0);
+        });
+
+        // Filter for payments that are either for the target month or still pending from previous months
+        return Object.values(groups)
+          .filter(g => {
+            const isFullyPaid = g.total >= (g.required * 0.99); // Use the 1% threshold
+            const isTargetMonth = g.month.includes(targetMonth) || g.month === 'all';
+            return !isFullyPaid && (isTargetMonth || g.total > 0); // Only return pending if it's the target month or a partial payment from before
+          })
+          .map(g => ({
+            studentName: g.name,
+            amountDue: Math.max(0, g.required - g.total),
+            course: g.course,
+            month: g.month
+          }));
+      })(),
       totalPaymentsAmount: data.payments.reduce((sum, p) => sum + (p.amount || 0), 0),
       courseDistribution: studentsInType,
       trainersCount: data.trainers.length,

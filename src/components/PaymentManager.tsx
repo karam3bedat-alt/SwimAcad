@@ -102,16 +102,24 @@ export const PaymentManager: React.FC = () => {
         }
         
         const pMonthStr = pDate?.toLocaleString('ar-EG', { month: 'long', year: 'numeric' }) || '';
-        return pMonthStr === selectedMonth || p.month === selectedMonth;
+        const selectedMonthTrimmed = selectedMonth.trim();
+        return pMonthStr.trim() === selectedMonthTrimmed || (p.month && p.month.trim() === selectedMonthTrimmed);
       }) || [];
       
       const totalPaid = studentPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+      
+      // Calculate requirement logic: 
+      // 1. Try to find a stored required_amount in the payments for this period
+      // 2. Fallback to calculation based on current course_type
+      const storedRequiredAmount = Math.max(...studentPayments.filter(p => p.required_amount).map(p => Number(p.required_amount) || 0), 0);
       
       let baseAmount = student.custom_fee || calculateMonthlyFee(student.course_type || student.level, currentConfig.coursePrices);
       
       // Loyalty discount: If scholar has >= 100 points, they get a discount (e.g., 100 NIS)
       const hasLoyaltyDiscount = (student.loyalty_points || 0) >= 100;
-      const requiredAmount = hasLoyaltyDiscount ? Math.max(0, baseAmount - 100) : baseAmount;
+      const calculatedRequiredAmount = hasLoyaltyDiscount ? Math.max(0, baseAmount - 100) : baseAmount;
+
+      const requiredAmount = storedRequiredAmount > 0 ? storedRequiredAmount : calculatedRequiredAmount;
 
       const dueDate = isCustomRange && customStartDate ? new Date(customStartDate) : new Date();
       if (!isCustomRange) dueDate.setDate(1);

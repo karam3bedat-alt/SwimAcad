@@ -1,5 +1,4 @@
 import React from 'react';
-import NotificationManager from '../components/NotificationManager';
 import { SmartInsights } from '../components/SmartInsights';
 import { Bell } from 'lucide-react';
 import { useStudents } from '../hooks/useStudents';
@@ -34,7 +33,7 @@ const Notifications: React.FC = () => {
       </div>
 
       {/* Smart AI Insights Section */}
-      <section>
+      <section className="bg-white dark:bg-slate-900 overflow-hidden">
         <SmartInsights 
           students={students} 
           payments={payments} 
@@ -43,14 +42,12 @@ const Notifications: React.FC = () => {
         />
       </section>
 
-      {/* Traditional Notifications Section */}
-      <section className="pt-4 border-t border-slate-100 dark:border-slate-800">
-        <div className="mb-6">
-          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">إدارة الاشتراكات والغياب</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">نظام المتابعة التقليدي للدفعات الشهرية وتنبيهات الحضور.</p>
-        </div>
-        <NotificationManager />
-      </section>
+      {/* Action Footer */}
+      <div className="mt-8 flex justify-center">
+        <p className="text-xs text-slate-400 font-medium bg-slate-50 dark:bg-slate-800/50 px-4 py-2 rounded-full border border-slate-100 dark:border-slate-800">
+          ✨ يتم تحديث هذه التنبيهات تلقائياً بناءً على تحليل عميق لبيانات الطلاب والدفعات.
+        </p>
+      </div>
     </div>
   );
 };

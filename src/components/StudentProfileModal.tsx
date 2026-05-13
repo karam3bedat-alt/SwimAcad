@@ -247,7 +247,7 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
                       ) : (
                         Object.entries(groupedPayments).map(([key, data]) => {
                           const balance = Math.max(0, data.required - data.total);
-                          const isFullyPaid = balance <= 0 && data.required > 0;
+                          const isFullyPaid = data.required > 0 ? (data.total >= data.required - 0.5) : (data.total > 0);
                           return (
                             <tr key={key} className="hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
                               <td className="px-4 py-3 font-bold text-slate-700 dark:text-slate-300">{selectedStudent.course_id && key.includes('غير محدد') ? courses.find(c => c.id === selectedStudent.course_id)?.name || key : key}</td>
