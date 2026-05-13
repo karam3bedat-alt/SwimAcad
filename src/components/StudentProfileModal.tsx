@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { Modal } from './Modal';
 import { Student, Payment, Booking, Coach, CourseCycle } from '../types';
-import { Loader2, User, Wallet, Calendar, Star, Image as ImageIcon, Phone, MapPin, Award, UserCheck, Clock, RefreshCw, Users, AlertCircle as AlertIcon } from 'lucide-react';
+import { Loader2, User, Wallet, Calendar, Star, Image as ImageIcon, Phone, MapPin, Award, UserCheck, Clock, RefreshCw, Users, AlertCircle as AlertIcon, DollarSign } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { usePayments } from '../hooks/usePayments';
 import { useTransactions } from '../hooks/useTransactions';
 import { useBookings } from '../hooks/useBookings';
 import { useTrainers } from '../hooks/useTrainers';
 import { useCourses } from '../hooks/useCourses';
+import { useSettings } from '../hooks/useSettings';
 import { useStudentEvaluations, useStudentMedia } from '../hooks/useStudents';
 import { StarRating } from './StudentCoachFeatures';
 import { format } from 'date-fns';
@@ -30,6 +31,7 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
   const { data: allBookings = [], isLoading: isLoadingBookings } = useBookings();
   const { data: trainers = [] } = useTrainers();
   const { data: courses = [] } = useCourses();
+  const { data: settings } = useSettings();
   const { data: evaluations = [], isLoading: isLoadingEvaluations } = useStudentEvaluations(student?.id || '');
   const { data: media = [], isLoading: isLoadingMedia } = useStudentMedia(student?.id || '');
 
@@ -42,6 +44,10 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
   const totalPaid = studentPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
   const totalTransactions = studentTransactions.reduce((sum, t) => sum + (Number(t.total_amount) || 0), 0);
   const overallTotal = totalPaid + totalTransactions;
+
+  const currentPrices = (settings?.payment_config as any)?.coursePrices || {};
+  const standardPrice = student.course_type ? (currentPrices[student.course_type] || 0) : 0;
+  const requiredFee = student.custom_fee || standardPrice;
 
   // Find assigned trainers
   let assignedTrainers: Coach[] = [];
@@ -147,6 +153,25 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
                   value={student.subscription_end_date ? format(new Date(student.subscription_end_date), 'yyyy-MM-dd') : '-'} 
                 />
               )}
+              <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-xl border border-indigo-100 dark:border-indigo-800 md:col-span-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-800 rounded-lg flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                      <DollarSign size={20} />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-indigo-600/70 uppercase tracking-wider block">سعر الاشتراك المطالب به</span>
+                      <span className="text-lg font-black text-indigo-800 dark:text-indigo-300">{requiredFee.toLocaleString()} ₪</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] text-slate-500 font-bold block">نوع السعر</span>
+                    <span className="text-xs font-black text-slate-700 dark:text-slate-200">
+                      {student.custom_fee ? 'سعر مخصص (يدوي)' : 'قيمة التصنيف (تلقائي)'}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
             
             {student.medical_notes && (

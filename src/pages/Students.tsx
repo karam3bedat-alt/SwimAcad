@@ -147,6 +147,7 @@ export default function Students() {
   const [viewMode, setViewMode] = useState<'all' | 'mine'>('all');
 
   const filteredStudents = (students || []).filter(s => {
+    const isExpired = s.subscription_end_date && new Date(s.subscription_end_date) < new Date();
     const matchesSearch = s.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                          (s.phone || s.parent_phone)?.includes(searchTerm);
     const matchesLevel = filterLevel === t('all_levels') || s.level === filterLevel;
@@ -476,11 +477,15 @@ export default function Students() {
                 <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 font-['Cairo']">{t('loyalty_points')}</th>
                 <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 font-['Cairo']">{t('total_paid')}</th>
                 <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 font-['Cairo']">تاريخ التسجيل</th>
+                <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">الحالة</th>
                 <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400">{t('actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-              {filteredStudents.map((student) => (
+              {filteredStudents.map((student) => {
+                const isExpired = student.subscription_end_date && new Date(student.subscription_end_date) < new Date();
+                
+                return (
                 <tr key={student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
                    <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-3">
@@ -547,10 +552,21 @@ export default function Students() {
                     </p>
                   </td>
                   <td className="px-6 py-4">
+                    <span className={cn(
+                      "px-2 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap",
+                      isExpired ? "bg-rose-50 text-rose-600 border border-rose-100" : 
+                      student.status === 'نشط' ? "bg-emerald-50 text-emerald-600 border border-emerald-100" : 
+                      "bg-slate-50 text-slate-600 border border-slate-100"
+                    )}>
+                      {isExpired ? 'منتهي الاشتراك' : (student.status || 'نشط')}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
                     <ActionButtons student={student} />
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -584,11 +600,20 @@ export default function Students() {
                     </p>
                   </div>
                 </div>
-                <span className={`px-2 py-1 rounded-lg text-[10px] font-bold ${
-                  student.status === 'نشط' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
-                }`}>
-                  {student.status || 'نشط'}
-                </span>
+                <div className="flex flex-col items-end gap-1">
+                  <span className={cn(
+                    "px-2 py-1 rounded-lg text-[10px] font-bold",
+                    (student.subscription_end_date && new Date(student.subscription_end_date) < new Date()) ? "bg-rose-50 text-rose-600 border border-rose-100" :
+                    student.status === 'نشط' ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"
+                  )}>
+                    {(student.subscription_end_date && new Date(student.subscription_end_date) < new Date()) ? 'منتهي الاشتراك' : (student.status || 'نشط')}
+                  </span>
+                  {student.subscription_end_date && (
+                    <span className="text-[8px] text-slate-400 font-bold">
+                      ينتهي: {new Date(student.subscription_end_date).toLocaleDateString('ar-EG')}
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3 text-sm">

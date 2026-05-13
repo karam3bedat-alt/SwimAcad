@@ -428,6 +428,11 @@ export default function Courses() {
             const payerCount = new Set(periodPayments.map(p => p.student_id)).size;
             
             const enrolledStudents = students.filter(s => {
+              // Only count active students with valid subscriptions
+              const isStatusActive = s.status !== 'غير نشط';
+              const isSubActive = !s.subscription_end_date || new Date(s.subscription_end_date) >= new Date();
+              if (!isStatusActive || !isSubActive) return false;
+
               const isExplicitlyEnrolled = s.course_id === viewingCourse.id;
               if (isExplicitlyEnrolled) return true;
 
