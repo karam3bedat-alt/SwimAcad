@@ -93,7 +93,8 @@ export const insightService = {
         // Filter for payments that are either for the target month or still pending from previous months
         return Object.values(groups)
           .filter(g => {
-            const isFullyPaid = g.total >= (g.required * 0.99); // Use the 1% threshold
+            const tolerance = 0.5;
+            const isFullyPaid = g.required > 0 ? (g.total >= g.required - tolerance) : (g.total > 0);
             const isTargetMonth = g.month.includes(targetMonth) || g.month === 'all';
             return !isFullyPaid && (isTargetMonth || g.total > 0); // Only return pending if it's the target month or a partial payment from before
           })

@@ -129,8 +129,9 @@ export const PaymentManager: React.FC = () => {
         Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
 
       let status: 'confirmed' | 'partial' | 'pending' = 'pending';
-      if (totalPaid >= requiredAmount) status = 'confirmed';
-      else if (totalPaid > 0) status = 'partial';
+      const tolerance = 0.5;
+      if (totalPaid >= requiredAmount - tolerance && requiredAmount > 0) status = 'confirmed';
+      else if (totalPaid > 0.01) status = 'partial';
 
       return {
         ...student,

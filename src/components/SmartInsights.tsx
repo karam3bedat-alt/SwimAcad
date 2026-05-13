@@ -139,37 +139,69 @@ export function SmartInsights({ students, payments, bookings = [], trainers = []
 
         {selectedInsight.metadata?.items && (
           <div className="space-y-2 mt-4">
-            <h6 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">قائمة التفاصيل</h6>
+            <h6 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">قائمة التفاصيل (اضغط للمراسلة)</h6>
             <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
-              {selectedInsight.metadata.items.map((item: any, idx: number) => (
-                <div key={idx} className="p-3 border-b border-slate-50 dark:border-slate-800 last:border-none flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-lg flex items-center justify-center text-xs font-bold shrink-0">
-                      {idx + 1}
+              {selectedInsight.metadata.items.map((item: any, idx: number) => {
+                const student = students.find(s => s.full_name === (item.name || item.studentName));
+                const phone = student?.phone || student?.parent_phone || '';
+                const name = item.name || item.studentName;
+                
+                const handleItemAction = () => {
+                  let message = '';
+                  if (selectedInsight.id.includes('birth')) {
+                    message = whatsappTemplates.birthday(name);
+                  } else if (selectedInsight.id.includes('pending') || selectedInsight.id.includes('credit') || selectedInsight.id.includes('subscription')) {
+                    const amount = item.amountDue || item.remaining || 0;
+                    const month = item.month || format(new Date(), 'MMMM yyyy', { locale: ar });
+                    message = whatsappTemplates.paymentReminder(name, amount, month);
+                  } else {
+                    message = `مرحباً ${name}، بخصوص: ${selectedInsight.title}\n${selectedInsight.desc}`;
+                  }
+                  
+                  const link = createWhatsAppLink(phone, message);
+                  window.open(link, '_blank');
+                };
+
+                return (
+                  <div 
+                    key={idx} 
+                    onClick={handleItemAction}
+                    className="p-3 border-b border-slate-50 dark:border-slate-800 last:border-none flex items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 group-hover:scale-110 transition-transform">
+                        {idx + 1}
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-slate-900 dark:text-slate-100">{name}</p>
+                        <p className="text-[10px] text-slate-500">{item.detail || item.course || item.date || `المبلغ: ${item.amountDue || item.remaining || ''} ₪`}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs font-black text-slate-900 dark:text-slate-100">{item.name || item.studentName}</p>
-                      <p className="text-[10px] text-slate-500">{item.detail || item.course || item.date || `رصيد: ${item.remaining || item.amountDue || ''}`}</p>
+                    <div className="w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <MessageCircle size={14} />
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
 
+        {/* Action button - remains for general context */}
         {(isBirthday || isSubscription) && (
           <div className="pt-4 flex flex-col gap-3">
-             <h6 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">إجراءات مقترحة</h6>
+             <h6 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">إجراء عام</h6>
              <button
                onClick={() => {
-                 const link = createWhatsAppLink('', isBirthday ? whatsappTemplates.birthday('') : whatsappTemplates.paymentReminder('', 0, ''));
+                 const names = selectedInsight.metadata?.items?.map((i: any) => i.name || i.studentName).join(', ') || '';
+                 const message = `تذكير بخصوص: ${selectedInsight.title}\n${selectedInsight.desc}`;
+                 const link = createWhatsAppLink('', message);
                  window.open(link, '_blank');
                }}
-               className="flex items-center justify-center gap-2 w-full p-4 bg-emerald-600 text-white rounded-2xl font-black shadow-lg shadow-emerald-100 dark:shadow-none hover:bg-emerald-700 transition-all hover:scale-[1.02]"
+               className="flex items-center justify-center gap-2 w-full p-4 bg-slate-900 dark:bg-slate-700 text-white rounded-2xl font-black shadow-lg hover:bg-slate-800 transition-all hover:scale-[1.02]"
              >
                <MessageCircle size={20} />
-               التواصل عبر واتساب
+               مراسلة عامة (بدون رقم محدد)
              </button>
           </div>
         )}
