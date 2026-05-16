@@ -38,8 +38,7 @@ export const PaymentManager: React.FC = () => {
   const { isAdmin } = useAuth();
   const { data: students, isLoading: studentsLoading } = useStudents();
   const { mutate: updateStudent } = useUpdateStudent();
-  const { data: payments, isLoading: paymentsLoading } = usePayments();
-  const { mutate: addPayment } = useAddPayment();
+ش  const { mutate: addPayment } = useAddPayment();
   const { mutate: updatePayment } = useUpdatePayment();
   const { mutate: deletePayment } = useDeletePayment();
   const { data: appSettings, isLoading: settingsLoading } = useSettings();
