@@ -60,5 +60,13 @@ export const whatsappTemplates = {
   birthday: (studentName: string) =>
     `عيد ميلاد سعيد لبطل الأكاديمية *${studentName}*! 🎉🥳\n\n` +
     `تتمنى أكاديمية القروش (Sharks) عاماً مليئاً بالصحة والنجاح والتألق في عالم السباحة.\n\n` +
-    `كل عام وأنتم بخير 🏊‍♂️🎂`
+    `كل عام وأنتم بخير 🏊‍♂️🎂`,
+
+  // Subscription/Credit Renewal
+  renewal: (studentName: string) =>
+    `مرحباً 👋\n\n` +
+    `نود اعلامكم بان رصيد الحصص او الاشتراك الخاص بـ *${studentName}* قد انتهى.\n\n` +
+    `للاستمرار معنا يرجى العمل على تجديد الاشتراك في أقرب وقت لضمان حجز الموعد.\n\n` +
+    `شكراً لتعاونكم 🙏\n` +
+    `Sharks Olympic Academy 🏊‍♂️`,
 };

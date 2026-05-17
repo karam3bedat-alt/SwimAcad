@@ -458,29 +458,57 @@ export const PaymentManager: React.FC = () => {
               id: editingPayment.id, 
               data: { 
                 amount: Number(formData.get('amount')),
+                required_amount: Number(formData.get('required_amount')),
                 month: formData.get('month') as string,
+                method: formData.get('method') as string,
+                date: formData.get('date') as string,
                 notes: formData.get('notes') as string
               }
             });
             setEditingPayment(null);
             toast.success('تم تحديث السجل المالي');
           }} className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">اسم الطالب</label>
-              <input type="text" disabled value={editingPayment.student_name} className="w-full bg-slate-100 dark:bg-slate-800 rounded-xl px-4 py-2 opacity-60" />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2 col-span-2">
+                <label className="text-sm font-bold text-slate-700 dark:text-slate-300">اسم الطالب</label>
+                <input type="text" disabled value={editingPayment.student_name} className="w-full bg-slate-100 dark:bg-slate-800 rounded-xl px-4 py-2 opacity-60" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700 dark:text-slate-300">المبلغ المستلم (₪)</label>
+                <input name="amount" type="number" defaultValue={editingPayment.amount} required className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700 dark:text-slate-300">المبلغ المطلوب (₪)</label>
+                <input name="required_amount" type="number" defaultValue={editingPayment.required_amount} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2" />
+              </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">المبلغ (₪)</label>
-              <input name="amount" type="number" defaultValue={editingPayment.amount} required className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2" />
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700 dark:text-slate-300">الشهر</label>
+                <input name="month" type="text" defaultValue={editingPayment.month} required className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700 dark:text-slate-300">طريقة الدفع</label>
+                <select name="method" defaultValue={editingPayment.method} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2">
+                  <option value="نقدي">نقدي</option>
+                  <option value="Bit">Bit</option>
+                  <option value="PayBox">PayBox</option>
+                  <option value="تحويل بنكي">تحويل بنكي</option>
+                </select>
+              </div>
             </div>
+
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">الشهر</label>
-              <input name="month" type="text" defaultValue={editingPayment.month} required className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2" />
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">التاريخ</label>
+              <input name="date" type="datetime-local" defaultValue={editingPayment.date ? new Date(editingPayment.date).toISOString().slice(0, 16) : ''} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2" />
             </div>
+
             <div className="space-y-2">
               <label className="text-sm font-bold text-slate-700 dark:text-slate-300">ملاحظات</label>
-              <textarea name="notes" defaultValue={editingPayment.notes} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 h-24" />
+              <textarea name="notes" defaultValue={editingPayment.notes} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 h-20 text-sm" />
             </div>
+
             <div className="flex gap-3 pt-4">
               <button type="submit" className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700">
                 <Save size={20} /> حفظ التعديلات
@@ -1094,8 +1122,10 @@ const HistoryTab = ({ payments, onEdit, onDelete }: { payments: any[], onEdit: a
         <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
           <tr>
             <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">الطالب</th>
-            <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">المبلغ</th>
+            <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">المبلغ المستلم</th>
+            <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">المطلوب</th>
             <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">الشهر</th>
+            <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">الطريقة</th>
             <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">التاريخ</th>
             <th className="px-6 py-4 text-sm font-bold text-slate-600 dark:text-slate-400 text-right">الإجراءات</th>
           </tr>
@@ -1105,7 +1135,9 @@ const HistoryTab = ({ payments, onEdit, onDelete }: { payments: any[], onEdit: a
             <tr key={payment.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
               <td className="px-6 py-4 font-bold text-slate-900 dark:text-slate-100">{payment.student_name}</td>
               <td className="px-6 py-4 font-bold text-emerald-600">{formatAmount(payment.amount)}</td>
+              <td className="px-6 py-4 text-sm text-slate-500 font-medium">{payment.required_amount ? formatAmount(payment.required_amount) : '-'}</td>
               <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{payment.month}</td>
+              <td className="px-6 py-4 text-xs font-bold text-slate-500">{payment.method}</td>
               <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-500">
                 {new Date(payment.date).toLocaleDateString('ar-EG')}
               </td>

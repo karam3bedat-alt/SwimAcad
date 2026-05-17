@@ -150,6 +150,8 @@ export function SmartInsights({ students, payments, bookings = [], trainers = []
                   let message = '';
                   if (selectedInsight.id.includes('birth')) {
                     message = whatsappTemplates.birthday(name);
+                  } else if (selectedInsight.id.includes('expired') || selectedInsight.id.includes('subscription_end') || (selectedInsight.id.includes('credit') && (item.remaining || 0) === 0)) {
+                    message = (whatsappTemplates as any).renewal(name);
                   } else if (selectedInsight.id.includes('pending') || selectedInsight.id.includes('credit') || selectedInsight.id.includes('subscription')) {
                     const amount = item.amountDue || item.remaining || 0;
                     const month = item.month || format(new Date(), 'MMMM yyyy', { locale: ar });

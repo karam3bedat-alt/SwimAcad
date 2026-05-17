@@ -8,6 +8,7 @@ export const NotificationTypes = {
   SESSION_REMINDER: 'session_reminder',   // Session reminder
   WELCOME: 'welcome',                    // Welcome
   ABSENCE_NOTICE: 'absence_notice',       // Absence notice
+  RENEWAL_NOTICE: 'renewal_notice',       // Renewal notice
   CUSTOM: 'custom'                       // Custom
 } as const;
 
@@ -122,6 +123,18 @@ export const messageTemplates: Record<NotificationType, (data: TemplateData) => 
       `نلفت انتباهكم إلى غياب ${data.studentName} عن الحصص لعدة مرات متتالية.\n\n` +
       `نود الاطمئنان عليه والتأكد من استمراريته في التدريبات.\n\n` +
       `يرجى التواصل معنا في حال وجود أي استفسار.\n\n` +
+      `Sharks Olympic Academy 🏊‍♂️`,
+    urgency: 'high',
+    sendBeforeDays: null
+  }),
+  
+  [NotificationTypes.RENEWAL_NOTICE]: (data) => ({
+    subject: 'تنبيه تجديد الاشتراك',
+    message: `مرحباً ${data.parentName} 👋\n\n` +
+      `نود اعلامكم بان رصيد الحصص او الاشتراك الخاص بـ ${data.studentName} قد انتهى.\n\n` +
+      `للاستمرار معنا يرجى العمل على تجديد الاشتراك في أقرب وقت لضمان حجز الموعد.\n\n` +
+      `للدفع السريع:\n${data.paymentLink}\n\n` +
+      `شكراً لتعاونكم 🙏\n` +
       `Sharks Olympic Academy 🏊‍♂️`,
     urgency: 'high',
     sendBeforeDays: null

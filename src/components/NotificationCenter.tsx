@@ -116,6 +116,53 @@ export function NotificationCenter() {
         });
       }
 
+      // 3. Subscription/Credit Renewal Reminders
+      if (students) {
+        students.forEach(student => {
+          if (student.status === 'نشط') {
+            // Case A: Session Credit (Low or Zero)
+            if (student.subscription_model === 'credit') {
+              const sessions = student.remaining_sessions || 0;
+              if (sessions <= 1) {
+                newNotifications.push({
+                  id: `renewal-credit-${student.id}`,
+                  type: 'system',
+                  title: sessions === 0 ? 'رصيد الحصص انتهى' : 'رصيد الحصص شارف على الانتهاء',
+                  message: sessions === 0 
+                    ? `البطل ${student.full_name} استنفد كافة حصصه. يرجى التواصل معه للتجديد.`
+                    : `بقي حصة واحدة فقط للبطل ${student.full_name}. يرجى تذكير ولي الأمر بالتجديد.`,
+                  time: 'عاجل',
+                  isRead: false,
+                  studentId: student.id,
+                  phone: student.phone || student.parent_phone
+                });
+              }
+            }
+            
+            // Case B: Subscription Expiry
+            if (student.subscription_model === 'monthly' && student.subscription_end_date) {
+              const endDate = new Date(student.subscription_end_date);
+              const diffDays = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+              
+              if (diffDays <= 3) {
+                newNotifications.push({
+                  id: `renewal-date-${student.id}`,
+                  type: 'system',
+                  title: diffDays <= 0 ? 'انتهى الاشتراك' : 'قرب انتهاء الاشتراك',
+                  message: diffDays <= 0
+                    ? `انتهى اشتراك ${student.full_name} بتاريخ ${endDate.toLocaleDateString('ar-EG')}.`
+                    : `ينتهي اشتراك ${student.full_name} خلال ${diffDays === 1 ? 'يوم واحد' : diffDays + ' أيام'}.`,
+                  time: diffDays <= 0 ? 'منتهي' : 'قريباً',
+                  isRead: false,
+                  studentId: student.id,
+                  phone: student.phone || student.parent_phone
+                });
+              }
+            }
+          }
+        });
+      }
+
       setNotifications(newNotifications);
     };
 
@@ -128,8 +175,18 @@ export function NotificationCenter() {
 
   const handleWhatsApp = (notification: Notification) => {
     if (notification.phone) {
-      const message = encodeURIComponent(notification.message);
-      window.open(`https://wa.me/${notification.phone.replace(/\D/g, '')}?text=${message}`, '_blank');
+      let message = notification.message;
+      
+      // If it's a renewal notification, try to use a better template for the parent
+      if (notification.id.startsWith('renewal-')) {
+        const student = students?.find(s => s.id === notification.studentId);
+        if (student) {
+          message = `مرحباً 👋\n\nنود اعلامكم بان رصيد الحصص او الاشتراك الخاص بـ *${student.full_name}* قد انتهى.\n\nللاستمرار معنا يرجى العمل على تجديد الاشتراك في أقرب وقت لضمان حجز الموعد.\n\nشكراً لتعاونكم 🙏\nSharks Olympic Academy 🏊‍♂️`;
+        }
+      }
+      
+      const encodedMessage = encodeURIComponent(message);
+      window.open(`https://wa.me/${notification.phone.replace(/\D/g, '')}?text=${encodedMessage}`, '_blank');
     }
   };
 
