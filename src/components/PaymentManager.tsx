@@ -160,7 +160,7 @@ export const PaymentManager: React.FC = () => {
   }, [studentsWithStatus]);
 
   // Send payment request
-  const sendPaymentRequest = (student: any, type: 'due' | 'overdue' | 'reminder' | 'confirmed' = 'due') => {
+  const sendPaymentRequest = (student: any, type: 'due' | 'overdue' | 'reminder' | 'confirmed' | 'renewal_needed' = 'due') => {
     const message = generatePaymentMessage(student, student.amount, selectedMonth, type, currentConfig);
     const link = createWhatsAppLink(student.phone || student.parent_phone || '', message);
     window.open(link, '_blank');
@@ -914,13 +914,20 @@ const OverviewTab = ({ students, onSend, onConfirm }: { students: any[], onSend:
                     <>
                       <button
                         onClick={() => onSend(student, student.daysOverdue > 5 ? 'overdue' : 'due')}
-                        className="bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-600 transition-colors"
+                        className="bg-blue-500 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-600 transition-colors"
                       >
                         تذكير
                       </button>
                       <button
+                        onClick={() => onSend(student, 'renewal_needed')}
+                        className="bg-amber-500 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold hover:bg-amber-600 transition-colors"
+                        title="أرسل إشعار انتهاء رصيد الحصص أو الاشتراك"
+                      >
+                        تنبيه تجديد
+                      </button>
+                      <button
                         onClick={() => onConfirm(student)}
-                        className="bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-600 transition-colors"
+                        className="bg-emerald-500 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-600 transition-colors"
                       >
                         دفع
                       </button>
@@ -979,16 +986,24 @@ const OverviewTab = ({ students, onSend, onConfirm }: { students: any[], onSend:
           </div>
 
           {student.status === 'pending' && (
-            <div className="flex gap-2 pt-2 border-t border-slate-50 dark:border-slate-800">
-              <button
-                onClick={() => onSend(student, student.daysOverdue > 5 ? 'overdue' : 'due')}
-                className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-blue-100"
-              >
-                طلب دفع
-              </button>
+            <div className="flex flex-col gap-2 pt-2 border-t border-slate-50 dark:border-slate-800">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => onSend(student, student.daysOverdue > 5 ? 'overdue' : 'due')}
+                  className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-blue-100"
+                >
+                  طلب دفع
+                </button>
+                <button
+                  onClick={() => onSend(student, 'renewal_needed')}
+                  className="flex-1 bg-amber-500 text-white py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-amber-100"
+                >
+                  تنبيه تجديد 🏊‍♂️
+                </button>
+              </div>
               <button
                 onClick={() => onConfirm(student)}
-                className="flex-1 bg-emerald-600 text-white py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-emerald-100"
+                className="w-full bg-emerald-600 text-white py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-emerald-100"
               >
                 تأكيد الاستلام
               </button>
@@ -1020,13 +1035,22 @@ const PendingTab = ({ students, onSend }: { students: any[], onSend: any }) => (
               <p className="text-rose-600 dark:text-rose-400 text-xs font-bold mt-1">متأخر {student.daysOverdue} يوم</p>
             )}
           </div>
-          <button
-            onClick={() => onSend(student, student.daysOverdue > 5 ? 'overdue' : 'due')}
-            className="bg-emerald-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-bold text-sm hover:bg-emerald-700 transition-all"
-          >
-            <MessageCircle size={18} />
-            تذكير
-          </button>
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => onSend(student, student.daysOverdue > 5 ? 'overdue' : 'due')}
+              className="bg-blue-600 text-white px-3 py-2 rounded-xl flex items-center gap-1 font-bold text-xs hover:bg-blue-700 transition-all"
+            >
+              <MessageCircle size={14} />
+              تذكير
+            </button>
+            <button
+              onClick={() => onSend(student, 'renewal_needed')}
+              className="bg-amber-500 text-white px-3 py-2 rounded-xl flex items-center gap-1 font-bold text-xs hover:bg-amber-600 transition-all"
+            >
+              <span>🏊‍♂️</span>
+              تنبيه تجديد
+            </button>
+          </div>
         </div>
       ))}
       {students.length === 0 && (

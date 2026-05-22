@@ -30,3 +30,14 @@ export const useAddSession = () => {
     }
   });
 };
+
+export const useUpdateSession = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<Session> }) => sessionsService.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+    }
+  });
+};

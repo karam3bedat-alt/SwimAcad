@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { trainersService, coachAttendanceService } from '../services/firebaseService';
-import { Coach, CoachAttendance } from '../types';
+import { trainersService, coachAttendanceService, coachEvaluationsService, coachPayoutsService } from '../services/firebaseService';
+import { Coach, CoachAttendance, CoachEvaluation, CoachPayout } from '../types';
 import { useAuth } from '../AuthContext';
 
 export const useTrainers = () => {
@@ -106,6 +106,57 @@ export const useDeleteTrainer = () => {
     mutationFn: (id: string) => trainersService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trainers'] });
+    }
+  });
+};
+
+// خطافات التقييم للمدربين
+export const useCoachEvaluations = (coachId?: string) => {
+  return useQuery<CoachEvaluation[]>({
+    queryKey: ['coachEvaluations', coachId],
+    queryFn: () => coachId ? coachEvaluationsService.getByCoachId(coachId) : coachEvaluationsService.getAll(),
+    enabled: true
+  });
+};
+
+export const useAddCoachEvaluation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Omit<CoachEvaluation, 'id'>) => coachEvaluationsService.add(data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['coachEvaluations', variables.coach_id] });
+      queryClient.invalidateQueries({ queryKey: ['coachEvaluations'] });
+    }
+  });
+};
+
+export const useDeleteCoachEvaluation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, coachId }: { id: string; coachId: string }) => coachEvaluationsService.delete(id),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['coachEvaluations', variables.coachId] });
+      queryClient.invalidateQueries({ queryKey: ['coachEvaluations'] });
+    }
+  });
+};
+
+// خطافات مدفوعات المدربين
+export const useCoachPayouts = (coachId?: string) => {
+  return useQuery<CoachPayout[]>({
+    queryKey: ['coachPayouts', coachId],
+    queryFn: () => coachId ? coachPayoutsService.getByCoachId(coachId) : coachPayoutsService.getAll(),
+    enabled: true
+  });
+};
+
+export const useAddCoachPayout = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Omit<CoachPayout, 'id'>) => coachPayoutsService.add(data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['coachPayouts', variables.coach_id] });
+      queryClient.invalidateQueries({ queryKey: ['coachPayouts'] });
     }
   });
 };

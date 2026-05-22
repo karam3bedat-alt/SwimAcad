@@ -45,6 +45,7 @@ export default function Students() {
   const [filterLevel, setFilterLevel] = useState(t('all_levels'));
   const [filterCourseType, setFilterCourseType] = useState('جميع الأنواع');
   const [filterCourseCycle, setFilterCourseCycle] = useState('جميع الدورات');
+  const [filterStatus, setFilterStatus] = useState<string>('الكل');
 
   const balances = useMemo(() => {
     const newBalances: Record<string, number> = {};
@@ -86,7 +87,8 @@ export default function Students() {
           subscription_model: (formData.get('subscription_model') as any) || 'monthly',
           remaining_sessions: formData.get('subscription_model') === 'credit' ? Number(formData.get('remaining_sessions')) || 0 : 0,
           subscription_start_date: formData.get('subscription_start_date') ? new Date(formData.get('subscription_start_date') as string).toISOString() : new Date().toISOString(),
-          subscription_end_date: formData.get('subscription_end_date') ? new Date(formData.get('subscription_end_date') as string).toISOString() : (formData.get('subscription_model') !== 'monthly' ? new Date(new Date().setDate(new Date().getDate() + 31)).toISOString() : null)
+          subscription_end_date: formData.get('subscription_end_date') ? new Date(formData.get('subscription_end_date') as string).toISOString() : (formData.get('subscription_model') !== 'monthly' ? new Date(new Date().setDate(new Date().getDate() + 31)).toISOString() : null),
+          status: (formData.get('status') as any) || 'نشط'
         });
       toast.success('تمت إضافة الطالب بنجاح', { id: toastId });
       setIsModalOpen(false);
@@ -120,7 +122,8 @@ export default function Students() {
             subscription_model: (formData.get('subscription_model') as any) || 'monthly',
             remaining_sessions: formData.get('subscription_model') === 'credit' ? Number(formData.get('remaining_sessions')) || 0 : 0,
             subscription_start_date: formData.get('subscription_start_date') ? new Date(formData.get('subscription_start_date') as string).toISOString() : selectedStudent.subscription_start_date,
-            subscription_end_date: formData.get('subscription_end_date') ? new Date(formData.get('subscription_end_date') as string).toISOString() : selectedStudent.subscription_end_date
+            subscription_end_date: formData.get('subscription_end_date') ? new Date(formData.get('subscription_end_date') as string).toISOString() : selectedStudent.subscription_end_date,
+            status: (formData.get('status') as any) || 'نشط'
           }
         });
       toast.success('تم تحديث بيانات الطالب بنجاح', { id: toastId });
@@ -154,7 +157,9 @@ export default function Students() {
     const matchesCourseType = filterCourseType === 'جميع الأنواع' || s.course_type === filterCourseType;
     const matchesCourseCycle = filterCourseCycle === 'جميع الدورات' || s.course_id === filterCourseCycle;
     const matchesCoach = viewMode === 'all' || s.assigned_coach_id === user?.uid;
-    return matchesSearch && matchesLevel && matchesCourseType && matchesCourseCycle && matchesCoach;
+    const studentStatus = s.status || 'نشط';
+    const matchesStatus = filterStatus === 'الكل' || studentStatus === filterStatus;
+    return matchesSearch && matchesLevel && matchesCourseType && matchesCourseCycle && matchesCoach && matchesStatus;
   });
 
   const handleAssignToMe = async (student: Student) => {
@@ -460,6 +465,17 @@ export default function Students() {
               {courses.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2 flex-1 md:flex-none">
+            <select 
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full md:min-w-[140px] dark:text-slate-200 font-bold text-slate-700"
+            >
+              <option value="الكل">جميع الحالات</option>
+              <option value="نشط">نشط</option>
+              <option value="غير نشط">غير نشط</option>
             </select>
           </div>
         </div>
@@ -772,6 +788,17 @@ export default function Students() {
             </select>
           </div>
           <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-700 dark:text-slate-300">حالة الطالب</label>
+            <select 
+              name="status" 
+              defaultValue="نشط"
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200 font-bold"
+            >
+              <option value="نشط">نشط</option>
+              <option value="غير نشط">غير نشط</option>
+            </select>
+          </div>
+          <div className="space-y-2">
             <label className="text-sm font-bold text-slate-700 dark:text-slate-300">عدد الحصص (للنظام الحصص)</label>
             <input 
               name="remaining_sessions" 
@@ -947,6 +974,17 @@ export default function Students() {
                 <option value="monthly">نظام شهري ميلادي</option>
                 <option value="rolling">نظام فترة متدحرجة (30 يوم)</option>
                 <option value="credit">نظام حصص (رصيد)</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300">حالة الطالب</label>
+              <select 
+                name="status" 
+                defaultValue={selectedStudent.status || 'نشط'}
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200 font-bold"
+              >
+                <option value="نشط">نشط</option>
+                <option value="غير نشط">غير نشط</option>
               </select>
             </div>
             <div className="space-y-2">

@@ -8,6 +8,7 @@ import { useStudents } from '../hooks/useStudents';
 import { useTrainers } from '../hooks/useTrainers';
 import { useAddBooking } from '../hooks/useBookings';
 import { useAuth } from '../AuthContext';
+import SmartLanesPlanner from '../components/SmartLanesPlanner';
 
 const DAYS = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
 
@@ -27,6 +28,7 @@ export default function Sessions() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  const [activeTab, setActiveTab] = useState<'schedule' | 'lanes'>('schedule');
 
   const handleSessionDelete = async () => {
     if (!selectedSession) return;
@@ -136,57 +138,87 @@ export default function Sessions() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-7 gap-4">
-        {DAYS.map((day) => (
-          <div key={day} className="space-y-4">
-            <div className="bg-blue-600 text-white p-3 rounded-xl text-center font-bold shadow-sm">
-              {day}
-            </div>
-            <div className="space-y-3">
-              {(sessions || []).filter(s => s.day === day).map((session) => (
-                <div key={session.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative group">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded uppercase">
-                      {session.required_level}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <button 
-                        onClick={() => { setSelectedSession(session); setIsModalOpen(true); }}
-                        className="text-blue-600 hover:text-blue-700 text-xs font-bold"
-                      >
-                        حجز
-                      </button>
-                      <button 
-                        onClick={() => { setSelectedSession(session); setIsDeleteModalOpen(true); }}
-                        className="text-slate-400 hover:text-rose-600 p-1 rounded transition-colors"
-                        title="حذف الحصة"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                  <h4 className="font-bold text-slate-900 text-sm mb-1">{session.coach_name || session.trainer_name}</h4>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                      <Clock size={12} />
-                      <span>{session.start_time} - {session.end_time}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                      <UsersIcon size={12} />
-                      <span>السعة: {session.max_capacity}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {(sessions || []).filter(s => s.day === day).length === 0 && (
-                <div className="h-24 border-2 border-dashed border-slate-100 rounded-xl flex items-center justify-center text-slate-300 text-xs italic text-center px-2">
-                  لا يوجد حصص مبرمجة
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
+      {/* أزرار التبديل الذكي لجدولة الحارات */}
+      <div className="flex border-b border-slate-200 gap-2 pb-px">
+        <button
+          onClick={() => setActiveTab('schedule')}
+          className={`pb-3 px-5 text-sm font-bold transition-all relative focus:outline-none ${
+            activeTab === 'schedule'
+              ? 'text-blue-600 border-b-2 border-blue-600 font-extrabold'
+              : 'text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          الجدول الأسبوعي للحصص
+        </button>
+        <button
+          onClick={() => setActiveTab('lanes')}
+          className={`pb-3 px-5 text-sm font-bold transition-all relative focus:outline-none ${
+            activeTab === 'lanes'
+              ? 'text-blue-600 border-b-2 border-blue-600 font-extrabold'
+              : 'text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          تقسيم ممرات المسبح والجدولة الذكية 🏊‍♂️
+        </button>
       </div>
+
+      {activeTab === 'schedule' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-7 gap-4">
+          {DAYS.map((day) => (
+            <div key={day} className="space-y-4">
+              <div className="bg-blue-600 text-white p-3 rounded-xl text-center font-bold shadow-sm">
+                {day}
+              </div>
+              <div className="space-y-3">
+                {(sessions || []).filter(s => s.day === day).map((session) => (
+                  <div key={session.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative group">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded uppercase">
+                        {session.required_level}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button 
+                          onClick={() => { setSelectedSession(session); setIsModalOpen(true); }}
+                          className="text-blue-600 hover:text-blue-700 text-xs font-bold"
+                        >
+                          حجز
+                        </button>
+                        {isAdmin() && (
+                          <button 
+                            onClick={() => { setSelectedSession(session); setIsDeleteModalOpen(true); }}
+                            className="text-slate-400 hover:text-rose-600 p-1 rounded transition-colors"
+                            title="حذف الحصة"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <h4 className="font-bold text-slate-900 text-sm mb-1">{session.coach_name || session.trainer_name}</h4>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                        <Clock size={12} />
+                        <span>{session.start_time} - {session.end_time}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                        <UsersIcon size={12} />
+                        <span>السعة: {session.max_capacity}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {(sessions || []).filter(s => s.day === day).length === 0 && (
+                  <div className="h-24 border-2 border-dashed border-slate-100 rounded-xl flex items-center justify-center text-slate-300 text-xs italic text-center px-2">
+                    لا يوجد حصص مبرمجة
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <SmartLanesPlanner sessions={sessions} />
+      )}
 
       <Modal 
         isOpen={isAddModalOpen} 

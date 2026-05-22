@@ -233,6 +233,46 @@
       "properties": {
         "lastUpdated": { "type": "string" }
       }
+    },
+    "CoachEvaluation": {
+      "title": "CoachEvaluation",
+      "description": "Administrator evaluation of coach performance",
+      "type": "object",
+      "properties": {
+        "coach_id": { "type": "string" },
+        "coach_name": { "type": "string" },
+        "date": { "type": "string" },
+        "evaluated_by": { "type": "string" },
+        "metrics": {
+          "type": "object",
+          "properties": {
+            "training_skills": { "type": "number" },
+            "punctuality": { "type": "number" },
+            "communication": { "type": "number" },
+            "professionalism": { "type": "number" }
+          }
+        },
+        "average_score": { "type": "number" },
+        "comments": { "type": "string" }
+      },
+      "required": ["coach_id", "date", "metrics", "average_score"]
+    },
+    "CoachPayout": {
+      "title": "CoachPayout",
+      "description": "Settled financial payout records for coaches",
+      "type": "object",
+      "properties": {
+        "coach_id": { "type": "string" },
+        "coach_name": { "type": "string" },
+        "month": { "type": "number" },
+        "year": { "type": "number" },
+        "base_salary_paid": { "type": "number" },
+        "extra_lessons_paid": { "type": "number" },
+        "total_paid": { "type": "number" },
+        "date_paid": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["coach_id", "month", "year", "total_paid", "date_paid"]
     }
   },
   "firestore": {
@@ -295,6 +335,14 @@
     "/settings/insights_metadata": {
       "schema": "InsightMetadata",
       "description": "Global metadata for insights (last update time)"
+    },
+    "/coach_evaluations/{id}": {
+      "schema": "CoachEvaluation",
+      "description": "Coach evaluation records"
+    },
+    "/coach_payouts/{id}": {
+      "schema": "CoachPayout",
+      "description": "Coach payout records"
     }
   }
 }

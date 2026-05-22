@@ -34,7 +34,7 @@ export const PAYMENT_CONFIG: PaymentConfig = {
   coursePrices: DEFAULT_COURSE_PRICES
 };
 
-export type PaymentMessageType = 'due' | 'overdue' | 'reminder' | 'confirmed';
+export type PaymentMessageType = 'due' | 'overdue' | 'reminder' | 'confirmed' | 'renewal_needed';
 
 // Generate comprehensive payment message in Arabic
 export const generatePaymentMessage = (studentData: any, amount: number, month: string, type: PaymentMessageType = 'due', customConfig?: any) => {
@@ -132,6 +132,27 @@ ${bitPhone}
 
 شكراً جزيلاً لتعاونكم! 🙏
 
+🏊‍♂️ ${academyName}`,
+
+    renewal_needed: `📢 *تنبيه انتهاء الاشتراك وتجديد الحصص* 🏊‍♂️
+
+مرحباً ${studentData.parent_name || 'ولي الأمر العزيز'} 👋
+
+نود إعلامكم بأن رصيد الحصص أو فترة الاشتراك الخاصة بالطالب *${studentData.full_name}* قد انتهت.
+
+للاستمرار معنا في إعداد بطلنا المتميز ومواصلة تدريبات السباحة الإبداعية والآمنة، يرجى المبادرة بتجديد الاشتراك وصرف الدفعة المخصصة لشهر ${month}.
+
+💰 قيمة تجديد الاشتراك: *${remainingAmount} ₪*
+
+طرق الدفع والتحويل السريع:
+📱 Bit (بيط): ${bitPhone}
+💳 PayBox (باي بوكس): ${payboxPhone}
+🏦 البنك: ${bankName} (${bankAccount})
+
+⚠️ يرجى تزويدنا بصورة من إيصال التحويل لتوثيق التجديد فوراً.
+
+للاستفسارات والدعم: ${academyPhone}
+شكراً لثقتكم ومستمرون معاً 💪
 🏊‍♂️ ${academyName}`
   };
 

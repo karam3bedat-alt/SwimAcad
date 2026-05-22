@@ -79,6 +79,9 @@ export interface Coach {
   salary?: number;
   lesson_rate?: number;
   photo_url?: string;
+  login_email?: string;
+  login_password?: string;
+  auth_uid?: string;
 }
 
 export interface CoachAttendance {
@@ -104,6 +107,9 @@ export interface Session {
   end_time: string;
   max_capacity: number;
   required_level: string;
+  lane_assignments?: Record<string, number>; // studentId -> laneNumber
+  coach_lane_assignments?: Record<string, number>; // coachId -> laneNumber
+  lanes_count?: number;
 }
 
 export interface Booking {
@@ -183,4 +189,33 @@ export interface Product {
 export interface AppSettings {
   payment_config: PaymentConfig;
   last_updated?: string;
+}
+
+export interface CoachEvaluation {
+  id: string;
+  coach_id: string;
+  coach_name: string;
+  date: string; // ISO date
+  evaluated_by: string; // e.g., admin email
+  metrics: {
+    training_skills: number; // 1-5
+    punctuality: number; // 1-5
+    communication: number; // 1-5
+    professionalism: number; // 1-5
+  };
+  average_score: number;
+  comments?: string;
+}
+
+export interface CoachPayout {
+  id: string;
+  coach_id: string;
+  coach_name: string;
+  month: number; // 1-12
+  year: number;
+  base_salary_paid: number;
+  extra_lessons_paid: number;
+  total_paid: number;
+  date_paid: string; // ISO date
+  notes?: string;
 }

@@ -114,5 +114,15 @@ service cloud.firestore {
       allow read, list: if isSignedIn();
       allow write: if isAdmin();
     }
+
+    match /coach_evaluations/{evalId} {
+      allow read, list: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /coach_payouts/{payoutId} {
+      allow read, list: if isAdmin() || (isSignedIn() && resource.data.coach_id == request.auth.uid);
+      allow write: if isAdmin();
+    }
   }
 }

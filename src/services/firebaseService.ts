@@ -15,7 +15,7 @@ import {
   getDoc
 } from 'firebase/firestore';
 
-import { Student, Coach, Session, Booking, Payment, AppSettings, CoachAttendance, StudentEvaluation, StudentMedia, Product, Transaction, TransactionItem } from '../types';
+import { Student, Coach, Session, Booking, Payment, AppSettings, CoachAttendance, StudentEvaluation, StudentMedia, Product, Transaction, TransactionItem, CoachEvaluation, CoachPayout } from '../types';
 
 enum OperationType {
   CREATE = 'create',
@@ -296,6 +296,132 @@ export const sessionsService = {
         createdAt: new Date().toISOString()
       });
       return { id: docRef.id, ...sessionData } as Session;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, path);
+      throw error;
+    }
+  },
+
+  async update(id: string, sessionData: Partial<Session>): Promise<void> {
+    const path = `sessions/${id}`;
+    try {
+      const docRef = doc(db, 'sessions', id);
+      const cleaned = cleanFirestoreData(sessionData);
+      await updateDoc(docRef, {
+        ...cleaned,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, path);
+      throw error;
+    }
+  }
+};
+
+// خدمة تقييمات المدربين
+export const coachEvaluationsService = {
+  async getAll(): Promise<CoachEvaluation[]> {
+    const path = 'coach_evaluations';
+    try {
+      const q = query(collection(db, path), orderBy('date', 'desc'));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as CoachEvaluation));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, path);
+      return [];
+    }
+  },
+
+  async getByCoachId(coachId: string): Promise<CoachEvaluation[]> {
+    const path = 'coach_evaluations';
+    try {
+      const q = query(collection(db, path), where('coach_id', '==', coachId));
+      const snapshot = await getDocs(q);
+      const evaluations = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as CoachEvaluation));
+      // Manual client-side sorting to overcome missing index requirement in dev
+      return evaluations.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, path);
+      return [];
+    }
+  },
+
+  async add(evalData: Omit<CoachEvaluation, 'id'>): Promise<CoachEvaluation> {
+    const path = 'coach_evaluations';
+    try {
+      const cleaned = cleanFirestoreData(evalData);
+      const docRef = await addDoc(collection(db, path), {
+        ...cleaned,
+        createdAt: new Date().toISOString()
+      });
+      return { id: docRef.id, ...evalData } as CoachEvaluation;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, path);
+      throw error;
+    }
+  },
+
+  async delete(id: string): Promise<void> {
+    const path = `coach_evaluations/${id}`;
+    try {
+      const docRef = doc(db, 'coach_evaluations', id);
+      await deleteDoc(docRef);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, path);
+      throw error;
+    }
+  }
+};
+
+// خدمة دفعات المدربين المادية
+export const coachPayoutsService = {
+  async getAll(): Promise<CoachPayout[]> {
+    const path = 'coach_payouts';
+    try {
+      const q = query(collection(db, path), orderBy('date_paid', 'desc'));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as CoachPayout));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, path);
+      return [];
+    }
+  },
+
+  async getByCoachId(coachId: string): Promise<CoachPayout[]> {
+    const path = 'coach_payouts';
+    try {
+      const q = query(collection(db, path), where('coach_id', '==', coachId));
+      const snapshot = await getDocs(q);
+      const payouts = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as CoachPayout));
+      // Client-side sorting for robust performance
+      return payouts.sort((a, b) => new Date(b.date_paid).getTime() - new Date(a.date_paid).getTime());
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, path);
+      return [];
+    }
+  },
+
+  async add(payoutData: Omit<CoachPayout, 'id'>): Promise<CoachPayout> {
+    const path = 'coach_payouts';
+    try {
+      const cleaned = cleanFirestoreData(payoutData);
+      const docRef = await addDoc(collection(db, path), {
+        ...cleaned,
+        createdAt: new Date().toISOString()
+      });
+      return { id: docRef.id, ...payoutData } as CoachPayout;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, path);
       throw error;
