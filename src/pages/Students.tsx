@@ -542,7 +542,7 @@ export default function Students() {
               className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full md:min-w-[140px] dark:text-slate-200"
             >
               <option value="جميع الدورات">جميع الدورات (Cycles)</option>
-              {courses.map(c => (
+              {courses.filter(c => Object.keys(currentPrices).includes(c.course_type)).map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
@@ -844,7 +844,7 @@ export default function Students() {
               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
             >
               <option value="">لا يوجد (نظام شهري)</option>
-              {courses.map(c => (
+              {courses.filter(c => c.status !== 'مكتمل').map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
@@ -1033,7 +1033,7 @@ export default function Students() {
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-4 outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-200"
               >
                 <option value="">لا يوجد (نظام شهري)</option>
-                {courses.map(c => (
+                {courses.filter(c => c.status !== 'مكتمل' || c.id === selectedStudent.course_id).map(c => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>

@@ -82,6 +82,12 @@ export const PaymentManager: React.FC = () => {
   const studentsWithStatus = useMemo(() => {
     if (!students) return [];
     
+    const isValidDateValue = (val: any) => {
+      if (!val) return false;
+      const d = new Date(val);
+      return d instanceof Date && !isNaN(d.getTime());
+    };
+
     return students.map(student => {
       // Find all payments for this student in the selected month/range
       const studentPayments = payments?.filter(p => {
@@ -133,6 +139,9 @@ export const PaymentManager: React.FC = () => {
       if (totalPaid >= requiredAmount - tolerance && requiredAmount > 0) status = 'confirmed';
       else if (totalPaid > 0.01) status = 'partial';
 
+      const isStudentInactive = (student.status as any) === 'غير نشط' || (student.status as any) === 'inactive';
+      const isExpired = isValidDateValue(student.subscription_end_date) && new Date(student.subscription_end_date!) < new Date();
+
       return {
         ...student,
         requiredAmount,
@@ -142,8 +151,19 @@ export const PaymentManager: React.FC = () => {
         paymentDate: studentPayments.length > 0 ? studentPayments[studentPayments.length - 1].date : undefined,
         paymentMethod: studentPayments.length > 0 ? studentPayments[studentPayments.length - 1].method : undefined,
         daysOverdue: Math.max(0, daysOverdue),
-        receiptNumber: studentPayments.length > 0 ? studentPayments[studentPayments.length - 1].id : undefined
+        receiptNumber: studentPayments.length > 0 ? studentPayments[studentPayments.length - 1].id : undefined,
+        originalStatus: student.status,
+        isStudentInactive,
+        isExpired
       };
+    }).filter(s => {
+      // Exclude student if:
+      // - They are inactive ("غير نشط") and didn't make any payment in this period
+      // - Or their subscription has expired (isExpired), and they didn't make any payment in this period
+      if ((s.isStudentInactive || s.isExpired) && s.totalPaid === 0) {
+        return false;
+      }
+      return true;
     });
   }, [students, payments, selectedMonth, currentConfig.coursePrices, isCustomRange, customStartDate, customEndDate]);
 

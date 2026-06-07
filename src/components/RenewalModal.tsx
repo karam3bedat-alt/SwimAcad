@@ -11,6 +11,7 @@ import { useProducts } from '../hooks/useProducts';
 import { useUpdateStudent } from '../hooks/useStudents';
 import { useSettings } from '../hooks/useSettings';
 import { useAddPayment } from '../hooks/usePayments';
+import { useCourses } from '../hooks/useCourses';
 import { format } from 'date-fns';
 import { DEFAULT_COURSE_PRICES, PaymentConfig } from '../services/paymentService';
 import { toast } from 'react-hot-toast';
@@ -37,6 +38,7 @@ export function RenewalModal({ isOpen, onClose, student }: RenewalModalProps) {
   const addTransactionMutation = useAddTransaction();
   const updateStudentMutation = useUpdateStudent();
   const addPaymentMutation = useAddPayment();
+  const { data: courses = [] } = useCourses();
   
   const currentPrices = (appSettings?.payment_config as PaymentConfig)?.coursePrices || DEFAULT_COURSE_PRICES;
   
@@ -288,6 +290,18 @@ export function RenewalModal({ isOpen, onClose, student }: RenewalModalProps) {
         subscription_start_date: new Date(startDate).toISOString(),
         subscription_end_date: subscriptionModel === 'credit' ? null : new Date(endDate).toISOString()
       };
+
+      // Check if current course cycle is completed or missing
+      const currentCourse = student.course_id ? courses.find(c => c.id === student.course_id) : null;
+      if (!currentCourse || currentCourse.status === 'مكتمل') {
+        // Find a pre-added course of the same course_type/category that is not completed (either 'نشط' or 'قادم')
+        const nextActiveCourse = courses.find(c => c.course_type === courseType && c.status !== 'مكتمل');
+        if (nextActiveCourse) {
+          updateData.course_id = nextActiveCourse.id;
+        } else {
+          updateData.course_id = ''; // remove their completed/stale course assignment
+        }
+      }
 
       if (subscriptionModel === 'credit') {
         const addedSessions = sessionsToAdd + (redemptionChoice === 'session' ? 1 : 0);

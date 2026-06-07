@@ -18,6 +18,8 @@ import { cn, exportToExcel } from '../lib/utils';
 import { toast } from 'react-hot-toast';
 import { useBookings, useUpdateBookingStatus, useAddBooking, useDeleteBooking } from '../hooks/useBookings';
 import { useStudents, useUpdateStudent } from '../hooks/useStudents';
+import { useSettings } from '../hooks/useSettings';
+import { DEFAULT_COURSE_PRICES } from '../services/paymentService';
 import { useTrainers, useCoachAttendance, useCoachCheckIn, useCoachMarkAbsent, useCoachCheckOut, useAddCoachAttendance } from '../hooks/useTrainers';
 import { Modal } from '../components/Modal';
 import { format, isToday, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
@@ -35,6 +37,7 @@ export default function Attendance() {
   const { data: students = [], isLoading: isLoadingStudents, error: studentsError } = useStudents();
   const { data: trainers = [] } = useTrainers();
   const { data: coachAttendance = [] } = useCoachAttendance(isAdmin() ? undefined : user?.uid);
+  const { data: appSettings } = useSettings();
   
   const [showOnlyMyStudents, setShowOnlyMyStudents] = useState(isCoach());
   const [activeTab, setActiveTab] = useState<'daily' | 'checksheet' | 'coaches'>(isCoach() ? 'daily' : 'checksheet');
@@ -106,15 +109,8 @@ export default function Attendance() {
     return false;
   };
 
-  const courses = [
-    'دورات عادية مع مواصلات فوق ال ٥ سنوات',
-    'دورات عادية بدون مواصلات فوق ال ٥ سنوات',
-    'دورات عادية مع مواصلات فوق ال ٥ سنوات (زبائن صيف)',
-    'دورات عادية بدون مواصلات فوق ال ٥ سنوات (زبائن صيف)',
-    'دورات نساء (بدون مواصلات)',
-    'دورات رجال (بدون مواصلات)',
-    'دورات خاصة لجميع الأعمار'
-  ];
+  const currentPrices = (appSettings?.payment_config as any)?.coursePrices || DEFAULT_COURSE_PRICES;
+  const courses = Object.keys(currentPrices);
 
   const filteredStudents = [...students].filter(s => {
     const matchesSearch = s.full_name?.toLowerCase().includes(searchTerm.toLowerCase());
