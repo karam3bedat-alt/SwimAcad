@@ -55,16 +55,6 @@ export interface StudentEvaluation {
   comments?: string;
 }
 
-export interface StudentMedia {
-  id: string;
-  student_id: string;
-  coach_id: string;
-  url: string;
-  type: 'image' | 'video';
-  description?: string;
-  date: string;
-}
-
 export interface Coach {
   id: string;
   name: string;

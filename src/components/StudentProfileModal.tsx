@@ -9,7 +9,7 @@ import { useBookings } from '../hooks/useBookings';
 import { useTrainers } from '../hooks/useTrainers';
 import { useCourses } from '../hooks/useCourses';
 import { useSettings } from '../hooks/useSettings';
-import { useStudentEvaluations, useStudentMedia } from '../hooks/useStudents';
+import { useStudentEvaluations } from '../hooks/useStudents';
 import { StarRating } from './StudentCoachFeatures';
 import { format } from 'date-fns';
 import { useI18n } from '../lib/LanguageContext';
@@ -20,7 +20,7 @@ interface StudentProfileModalProps {
   student: Student | null;
 }
 
-type TabType = 'info' | 'payments' | 'attendance' | 'evaluations' | 'media';
+type TabType = 'info' | 'payments' | 'attendance' | 'evaluations';
 
 export function StudentProfileModal({ isOpen, onClose, student }: StudentProfileModalProps) {
   const { t } = useI18n();
@@ -33,7 +33,6 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
   const { data: courses = [] } = useCourses();
   const { data: settings } = useSettings();
   const { data: evaluations = [], isLoading: isLoadingEvaluations } = useStudentEvaluations(student?.id || '');
-  const { data: media = [], isLoading: isLoadingMedia } = useStudentMedia(student?.id || '');
 
   if (!student) return null;
 
@@ -79,7 +78,6 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
     { id: 'payments', label: 'السجل المالي', icon: Wallet },
     { id: 'attendance', label: 'سجل الحضور', icon: Clock },
     { id: 'evaluations', label: 'التقييمات الفنية', icon: Star },
-    { id: 'media', label: 'المعرض والميديا', icon: ImageIcon },
   ];
 
   const renderTabContent = () => {
@@ -441,38 +439,6 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
                 ))
               )}
             </div>
-          </div>
-        );
-      case 'media':
-        return (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 font-['Cairo'] animate-in fade-in slide-in-from-bottom-4">
-            {isLoadingMedia ? (
-              <div className="col-span-full flex justify-center p-8"><Loader2 className="animate-spin text-blue-600" /></div>
-            ) : media.length === 0 ? (
-              <p className="col-span-full text-center text-slate-400 py-8 italic font-['Cairo'] text-sm">لا توجد صور أو فيديوهات لهذا الطالب.</p>
-            ) : (
-              media.map(m => (
-                <div key={m.id} className="group relative aspect-square bg-slate-100 dark:bg-slate-800 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all">
-                  {m.type === 'image' ? (
-                    <img src={m.url} alt={m.description} className="w-full h-full object-cover transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
-                  ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center p-2 text-slate-500 bg-slate-200 dark:bg-slate-800">
-                      <ImageIcon size={32} strokeWidth={1.5} />
-                      <span className="text-[10px] mt-2 font-bold">فيديو تدريبي</span>
-                    </div>
-                  )}
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3 translate-y-full group-hover:translate-y-0 transition-transform">
-                    <p className="text-white text-[10px] font-bold line-clamp-1 mb-2">{m.description || 'بدون وصف'}</p>
-                    <button 
-                      onClick={() => window.open(m.url, '_blank')}
-                      className="w-full text-[10px] bg-white text-slate-900 py-1.5 rounded-lg font-black hover:bg-blue-600 hover:text-white transition-colors"
-                    >
-                      عرض بالحجم الكامل
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
           </div>
         );
     }

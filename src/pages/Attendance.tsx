@@ -80,10 +80,10 @@ export default function Attendance() {
 
   const isSubscriptionExpired = (student: any) => {
     const today = new Date();
+    if (isValidDateValue(student.subscription_end_date)) {
+      return new Date(student.subscription_end_date) < today;
+    }
     if (student.subscription_model === 'rolling') {
-      if (isValidDateValue(student.subscription_end_date)) {
-        return new Date(student.subscription_end_date) < today;
-      }
       // Fallback if no end date but has start date
       if (isValidDateValue(student.subscription_start_date)) {
         const startDate = new Date(student.subscription_start_date);
@@ -93,10 +93,6 @@ export default function Attendance() {
       }
     }
     if (student.subscription_model === 'credit') {
-      // Expiry check even for credits if date is set
-      if (isValidDateValue(student.subscription_end_date)) {
-        return new Date(student.subscription_end_date) < today;
-      }
       // If no end date, check 31 days from first session or start date
       const referenceDate = student.subscription_start_date || student.first_session_date;
       if (isValidDateValue(referenceDate)) {
@@ -116,9 +112,27 @@ export default function Attendance() {
     const matchesSearch = s.full_name?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCoach = !showOnlyMyStudents || s.assigned_coach_id === user?.uid;
     const matchesCourse = !selectedCourse || s.course_type === selectedCourse;
-    // More robust status check: treat anything that isn't explicitly "inactive" or "غير نشط" as active
-    const isActive = (s.status as any) !== 'غير نشط' && (s.status as any) !== 'inactive' && (s.status as any) !== 'مركز';
-    return matchesSearch && matchesCoach && matchesCourse && isActive;
+    
+    // Check if the student's status is explicitly inactive
+    const isStatusActive = (s.status as any) !== 'غير نشط' && (s.status as any) !== 'inactive' && (s.status as any) !== 'مركز';
+    
+    // Check if subscription has expired
+    const isExpired = isSubscriptionExpired(s);
+    
+    // Check if they are a credit student with 0 or fewer remaining sessions
+    const isNoSessions = s.subscription_model === 'credit' && (s.remaining_sessions || 0) <= 0;
+
+    // Is active overall
+    const isActiveStudent = isStatusActive && !isExpired && !isNoSessions;
+
+    // Check if they have an existing booking for the currently selected date
+    const todayStr = format(new Date(attendanceDate), 'yyyy-MM-dd');
+    const hasBookingForDay = bookings.some(b => 
+      b.student_id === s.id && 
+      format(new Date(b.date), 'yyyy-MM-dd') === todayStr
+    );
+
+    return matchesSearch && matchesCoach && matchesCourse && (isActiveStudent || hasBookingForDay);
   }).sort((a, b) => (a.full_name || '').trim().localeCompare((b.full_name || '').trim(), 'ar'));
 
   const checkAbsenceAlert = async (studentId: string) => {

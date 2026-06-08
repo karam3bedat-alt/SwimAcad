@@ -1,27 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { studentsService, studentMediaService, studentEvaluationsService } from '../services/firebaseService';
-import { Student, StudentMedia, StudentEvaluation } from '../types';
-
-// ... (previous hooks)
-
-// Hook لتاريخ ميديا الطالب
-export const useStudentMedia = (studentId: string) => {
-  return useQuery<StudentMedia[]>({
-    queryKey: ['student_media', studentId],
-    queryFn: () => studentMediaService.getAll(studentId),
-    enabled: !!studentId
-  });
-};
-
-export const useAddStudentMedia = (studentId: string) => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (data: Omit<StudentMedia, 'id'>) => studentMediaService.add(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['student_media', studentId] });
-    }
-  });
-};
+import { studentsService, studentEvaluationsService } from '../services/firebaseService';
+import { Student, StudentEvaluation } from '../types';
 
 // Hook لتقييمات الطالب
 export const useStudentEvaluations = (studentId: string) => {

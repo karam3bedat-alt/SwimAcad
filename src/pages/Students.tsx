@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Search, Filter, Phone, Wallet, Loader2, AlertCircle, Edit2, Trash2, Download, MessageCircle, Award, RefreshCw, UserPlus, ClipboardList, Image as ImageIcon } from 'lucide-react';
+import { Plus, Search, Filter, Phone, Wallet, Loader2, AlertCircle, Edit2, Trash2, Download, MessageCircle, Award, RefreshCw, UserPlus, ClipboardList, CheckCircle2, XCircle, AlertTriangle, Hourglass, Users, X, SlidersHorizontal, Layers, CalendarRange } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Student } from '../types';
 import { Modal } from '../components/Modal';
@@ -17,7 +17,7 @@ import { useI18n } from '../lib/LanguageContext';
 import { useAuth } from '../AuthContext';
 
 import { RenewalModal } from '../components/RenewalModal';
-import { StudentEvaluationsModal, StudentMediaModal } from '../components/StudentCoachFeatures';
+import { StudentEvaluationsModal } from '../components/StudentCoachFeatures';
 import { StudentProfileModal } from '../components/StudentProfileModal';
 
 export default function Students() {
@@ -27,8 +27,17 @@ export default function Students() {
   const { data: courses = [] } = useCourses();
   const { data: appSettings } = useSettings();
   
-  const currentPrices = (appSettings?.payment_config as PaymentConfig)?.coursePrices || DEFAULT_COURSE_PRICES;
-  const courseTypes = Object.entries(currentPrices).map(([name, price]) => ({ name, price: price as number }));
+  const currentPrices = useMemo(() => {
+    const configPrices = (appSettings?.payment_config as PaymentConfig)?.coursePrices;
+    if (configPrices && Object.keys(configPrices).length > 0) {
+      return configPrices;
+    }
+    return DEFAULT_COURSE_PRICES;
+  }, [appSettings]);
+
+  const courseTypes = useMemo(() => {
+    return Object.entries(currentPrices).map(([name, price]) => ({ name, price: price as number }));
+  }, [currentPrices]);
   
   const getCourseBadgeStyles = (courseName: string | undefined) => {
     if (!courseName) return "bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-100 dark:border-slate-800";
@@ -126,6 +135,7 @@ export default function Students() {
   const [filterCourseType, setFilterCourseType] = useState('جميع الأنواع');
   const [filterCourseCycle, setFilterCourseCycle] = useState('جميع الدورات');
   const [filterStatus, setFilterStatus] = useState<string>('الكل');
+  const [selectedCategory, setSelectedCategory] = useState<'all' | 'active' | 'inactive' | 'expired' | 'low_balance'>('all');
 
   const balances = useMemo(() => {
     const newBalances: Record<string, number> = {};
@@ -229,17 +239,94 @@ export default function Students() {
   const { user, isAdmin, isCoach } = useAuth();
   const [viewMode, setViewMode] = useState<'all' | 'mine'>('all');
 
+  const hasActiveFilters = useMemo(() => {
+    return filterLevel !== t('all_levels') ||
+      filterCourseType !== 'جميع الأنواع' ||
+      filterCourseCycle !== 'جميع الدورات' ||
+      filterStatus !== 'الكل' ||
+      selectedCategory !== 'all' ||
+      searchTerm !== '';
+  }, [filterLevel, filterCourseType, filterCourseCycle, filterStatus, selectedCategory, searchTerm, t]);
+
+  const handleResetFilters = () => {
+    setFilterLevel(t('all_levels'));
+    setFilterCourseType('جميع الأنواع');
+    setFilterCourseCycle('جميع الدورات');
+    setFilterStatus('الكل');
+    setSelectedCategory('all');
+    setSearchTerm('');
+  };
+
+  const categoriesStats = useMemo(() => {
+    const list = students || [];
+    let total = 0;
+    let active = 0;
+    let inactive = 0;
+    let expired = 0;
+    let lowBalance = 0;
+
+    list.forEach(s => {
+      if (viewMode === 'mine' && s.assigned_coach_id !== user?.uid) return;
+
+      total++;
+      const isExpiredStatus = isValidDateValue(s.subscription_end_date) && new Date(s.subscription_end_date!) < new Date();
+      const hasNoSessions = s.subscription_model === 'credit' && (s.remaining_sessions || 0) <= 0;
+      const isSubscriptionExpiredStatus = isExpiredStatus || hasNoSessions;
+      
+      const isLowBalanceStatus = (s.subscription_model === 'credit' && (s.remaining_sessions || 0) > 0 && (s.remaining_sessions || 0) <= 2) ||
+                           (isValidDateValue(s.subscription_end_date) && !isExpiredStatus && (new Date(s.subscription_end_date!).getTime() - new Date().getTime()) <= 5 * 24 * 60 * 60 * 1000);
+
+      const studentStatus = s.status || 'نشط';
+      const isStatusInactive = studentStatus === 'غير نشط' || (studentStatus as string) === 'inactive' || (studentStatus as string) === 'مركز';
+
+      if (isStatusInactive) {
+        inactive++;
+      } else if (isSubscriptionExpiredStatus) {
+        expired++;
+      } else {
+        active++;
+      }
+
+      if (isLowBalanceStatus) {
+        lowBalance++;
+      }
+    });
+
+    return { total, active, inactive, expired, lowBalance };
+  }, [students, viewMode, user]);
+
   const filteredStudents = (students || []).filter(s => {
     const isExpired = isValidDateValue(s.subscription_end_date) && new Date(s.subscription_end_date!) < new Date();
+    const hasNoSessions = s.subscription_model === 'credit' && (s.remaining_sessions || 0) <= 0;
+    const isSubscriptionExpiredStatus = isExpired || hasNoSessions;
+    
+    const isLowBalance = (s.subscription_model === 'credit' && (s.remaining_sessions || 0) > 0 && (s.remaining_sessions || 0) <= 2) ||
+                         (isValidDateValue(s.subscription_end_date) && !isExpired && (new Date(s.subscription_end_date!).getTime() - new Date().getTime()) <= 5 * 24 * 60 * 60 * 1000);
+
     const matchesSearch = s.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         (s.phone || s.parent_phone)?.includes(searchTerm);
+                          (s.phone || s.parent_phone)?.includes(searchTerm);
     const matchesLevel = filterLevel === t('all_levels') || s.level === filterLevel;
     const matchesCourseType = filterCourseType === 'جميع الأنواع' || s.course_type === filterCourseType;
     const matchesCourseCycle = filterCourseCycle === 'جميع الدورات' || s.course_id === filterCourseCycle;
     const matchesCoach = viewMode === 'all' || s.assigned_coach_id === user?.uid;
+    
     const studentStatus = s.status || 'نشط';
+    const isStatusInactive = studentStatus === 'غير نشط' || (studentStatus as string) === 'inactive' || (studentStatus as string) === 'مركز';
+
+    // Matches classification categories
+    let matchesCategory = true;
+    if (selectedCategory === 'active') {
+      matchesCategory = !isStatusInactive && !isSubscriptionExpiredStatus;
+    } else if (selectedCategory === 'inactive') {
+      matchesCategory = isStatusInactive;
+    } else if (selectedCategory === 'expired') {
+      matchesCategory = isSubscriptionExpiredStatus && !isStatusInactive;
+    } else if (selectedCategory === 'low_balance') {
+      matchesCategory = isLowBalance && !isStatusInactive;
+    }
+
     const matchesStatus = filterStatus === 'الكل' || studentStatus === filterStatus;
-    return matchesSearch && matchesLevel && matchesCourseType && matchesCourseCycle && matchesCoach && matchesStatus;
+    return matchesSearch && matchesLevel && matchesCourseType && matchesCourseCycle && matchesCoach && matchesStatus && matchesCategory;
   });
 
   const handleAssignToMe = async (student: Student) => {
@@ -314,36 +401,20 @@ export default function Students() {
         </button>
       )}
       {isCoach() && student.assigned_coach_id === user?.uid && (
-        <>
-          <button 
-            onClick={() => {
-              setSelectedStudent(student);
-              setIsEvaluationModalOpen(true);
-            }}
-            className={cn(
-              "p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors",
-              isMobile && "bg-purple-50 px-3 py-1 text-xs font-bold flex items-center gap-1"
-            )}
-            title="تقييم الطالب"
-          >
-            <ClipboardList size={16} />
-            {isMobile && <span>تقييم</span>}
-          </button>
-          <button 
-            onClick={() => {
-              setSelectedStudent(student);
-              setIsMediaModalOpen(true);
-            }}
-            className={cn(
-              "p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors",
-              isMobile && "bg-indigo-50 px-3 py-1 text-xs font-bold flex items-center gap-1"
-            )}
-            title="ميديا الطالب"
-          >
-            <ImageIcon size={16} />
-            {isMobile && <span>ميديا</span>}
-          </button>
-        </>
+        <button 
+          onClick={() => {
+            setSelectedStudent(student);
+            setIsEvaluationModalOpen(true);
+          }}
+          className={cn(
+            "p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors",
+            isMobile && "bg-purple-50 px-3 py-1 text-xs font-bold flex items-center gap-1"
+          )}
+          title="تقييم الطالب"
+        >
+          <ClipboardList size={16} />
+          {isMobile && <span>تقييم</span>}
+        </button>
       )}
       {(isAdmin() || (isCoach() && student.assigned_coach_id === user?.uid)) && (
         <button 
@@ -475,88 +546,280 @@ export default function Students() {
         </div>
       )}
 
-      <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row gap-4">
-        {isCoach() && (
-          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-fit">
-            <button
-              onClick={() => setViewMode('all')}
-              className={cn(
-                "px-4 py-2 rounded-lg text-xs font-bold transition-all",
-                viewMode === 'all' ? "bg-white dark:bg-slate-900 text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-              )}
-            >
-              جميع الطلاب
-            </button>
-            <button
-              onClick={() => setViewMode('mine')}
-              className={cn(
-                "px-4 py-2 rounded-lg text-xs font-bold transition-all",
-                viewMode === 'mine' ? "bg-white dark:bg-slate-900 text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-              )}
-            >
-              طلابي
-            </button>
+      {/* Modern Student Classifications Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6 font-['Cairo']" dir="rtl">
+        {/* Card 1: All */}
+        <button
+          onClick={() => setSelectedCategory('all')}
+          className={cn(
+            "p-4 rounded-2xl border text-right transition-all flex flex-col justify-between relative overflow-hidden group shadow-sm cursor-pointer",
+            selectedCategory === 'all' 
+              ? "bg-blue-50/80 dark:bg-blue-900/20 border-blue-500 ring-2 ring-blue-500/10 scale-[1.02]" 
+              : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-800"
+          )}
+        >
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">إجمالي الطلاب</span>
+            <Users size={18} className={cn(selectedCategory === 'all' ? "text-blue-500" : "text-slate-400")} />
           </div>
-        )}
-        <div className="relative flex-1">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-          <input 
-            type="text" 
-            placeholder={t('search')} 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-2.5 pr-10 pl-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none dark:text-slate-200"
-          />
+          <div className="mt-2">
+            <span className="text-2xl font-black text-slate-800 dark:text-slate-100">{categoriesStats.total}</span>
+            <span className="text-[10px] block text-slate-400 dark:text-slate-500 mt-0.5">طالب مسجل</span>
+          </div>
+          {selectedCategory === 'all' && (
+            <div className="absolute top-0 right-0 w-1.5 h-full bg-blue-500" />
+          )}
+        </button>
+
+        {/* Card 2: Active */}
+        <button
+          onClick={() => setSelectedCategory('active')}
+          className={cn(
+            "p-4 rounded-2xl border text-right transition-all flex flex-col justify-between relative overflow-hidden group shadow-sm cursor-pointer",
+            selectedCategory === 'active' 
+              ? "bg-emerald-50/80 dark:bg-emerald-900/20 border-emerald-500 ring-2 ring-emerald-500/10 scale-[1.02]" 
+              : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-800"
+          )}
+        >
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">الاشتراكات النشطة</span>
+            <CheckCircle2 size={18} className={cn(selectedCategory === 'active' ? "text-emerald-500" : "text-slate-400")} />
+          </div>
+          <div className="mt-2">
+            <span className="text-2xl font-black text-slate-800 dark:text-slate-100">{categoriesStats.active}</span>
+            <span className="text-[10px] block text-slate-400 dark:text-slate-500 mt-0.5">حالة نشطة ومفعلة</span>
+          </div>
+          {selectedCategory === 'active' && (
+            <div className="absolute top-0 right-0 w-1.5 h-full bg-emerald-500" />
+          )}
+        </button>
+
+        {/* Card 3: Expired */}
+        <button
+          onClick={() => setSelectedCategory('expired')}
+          className={cn(
+            "p-4 rounded-2xl border text-right transition-all flex flex-col justify-between relative overflow-hidden group shadow-sm cursor-pointer",
+            selectedCategory === 'expired' 
+              ? "bg-rose-50/80 dark:bg-rose-900/20 border-rose-500 ring-2 ring-rose-500/10 scale-[1.02]" 
+              : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-rose-400 dark:hover:border-rose-800"
+          )}
+        >
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">الاشتراكات المنتهية</span>
+            <XCircle size={18} className={cn(selectedCategory === 'expired' ? "text-rose-500" : "text-slate-400")} />
+          </div>
+          <div className="mt-2">
+            <span className="text-2xl font-black text-slate-800 dark:text-slate-100">{categoriesStats.expired}</span>
+            <span className="text-[10px] block text-slate-400 dark:text-slate-500 mt-0.5">انتهت مدتها أو رصيدها</span>
+          </div>
+          {selectedCategory === 'expired' && (
+            <div className="absolute top-0 right-0 w-1.5 h-full bg-rose-500" />
+          )}
+        </button>
+
+        {/* Card 4: Low Balance */}
+        <button
+          onClick={() => setSelectedCategory('low_balance')}
+          className={cn(
+            "p-4 rounded-2xl border text-right transition-all flex flex-col justify-between relative overflow-hidden group shadow-sm cursor-pointer",
+            selectedCategory === 'low_balance' 
+              ? "bg-amber-50/80 dark:bg-amber-900/20 border-amber-500 ring-2 ring-amber-500/10 scale-[1.02]" 
+              : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-amber-400 dark:hover:border-amber-800"
+          )}
+        >
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">قارب على الانتهاء</span>
+            <Hourglass size={18} className={cn(selectedCategory === 'low_balance' ? "text-amber-500" : "text-slate-400")} />
+          </div>
+          <div className="mt-2">
+            <span className="text-2xl font-black text-slate-800 dark:text-slate-100">{categoriesStats.lowBalance}</span>
+            <span className="text-[10px] block text-slate-400 dark:text-slate-500 mt-0.5">رصيد ≤ 2 أو ينتهي قريباً</span>
+          </div>
+          {selectedCategory === 'low_balance' && (
+            <div className="absolute top-0 right-0 w-1.5 h-full bg-amber-500" />
+          )}
+        </button>
+
+        {/* Card 5: Inactive */}
+        <button
+          onClick={() => setSelectedCategory('inactive')}
+          className={cn(
+            "p-4 rounded-2xl border text-right transition-all flex flex-col justify-between relative overflow-hidden group shadow-sm cursor-pointer",
+            selectedCategory === 'inactive' 
+              ? "bg-slate-100 dark:bg-slate-800 border-slate-500 ring-2 ring-slate-500/10 scale-[1.02]" 
+              : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-800"
+          )}
+        >
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">الطلاب غير النشطين</span>
+            <AlertTriangle size={18} className={cn(selectedCategory === 'inactive' ? "text-slate-500" : "text-slate-400")} />
+          </div>
+          <div className="mt-2">
+            <span className="text-2xl font-black text-slate-800 dark:text-slate-100">{categoriesStats.inactive}</span>
+            <span className="text-[10px] block text-slate-400 dark:text-slate-500 mt-0.5">ملغى أو موقوف مؤقتاً</span>
+          </div>
+          {selectedCategory === 'inactive' && (
+            <div className="absolute top-0 right-0 w-1.5 h-full bg-slate-500" />
+          )}
+        </button>
+      </div>
+
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 font-['Cairo']" dir="rtl">
+        {/* Row 1: Search Bar & Segmented Toggles */}
+        <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between">
+          {/* Permanent Search Bar */}
+          <div className="relative flex-1 group">
+            <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={20} />
+            <input 
+              type="text" 
+              placeholder="ابحث باسم الطالب، رقم الهاتف، أو رقم ولي الأمر..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 pr-12 pl-10 text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-950 outline-none dark:text-slate-200 transition-all font-semibold placeholder-slate-400 dark:placeholder-slate-500 shadow-inner"
+            />
+            {searchTerm && (
+              <button 
+                onClick={() => setSearchTerm('')}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                title="مسح البحث"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+
+          {/* Coach Segmented Controls */}
+          {isCoach() && (
+            <div className="flex bg-slate-100 dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200/50 dark:border-slate-700/50 shrink-0 self-start lg:self-auto shadow-inner">
+              <button
+                onClick={() => setViewMode('all')}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5",
+                  viewMode === 'all' 
+                    ? "bg-white dark:bg-slate-900 text-blue-600 shadow-sm border border-slate-200/20" 
+                    : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                )}
+              >
+                <Users size={14} />
+                <span>جميع الطلاب</span>
+              </button>
+              <button
+                onClick={() => setViewMode('mine')}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5",
+                  viewMode === 'mine' 
+                    ? "bg-white dark:bg-slate-900 text-blue-600 shadow-sm border border-slate-200/20" 
+                    : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                )}
+              >
+                <Award size={14} />
+                <span>طلابي فقط</span>
+              </button>
+            </div>
+          )}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2 flex-1 md:flex-none">
-            <Filter size={18} className="text-slate-400" />
-            <select 
-              value={filterLevel}
-              onChange={(e) => setFilterLevel(e.target.value)}
-              className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full md:min-w-[140px] dark:text-slate-200"
-            >
-              <option value={t('all_levels')}>{t('all_levels')}</option>
-              <option value={t('beginner')}>{t('beginner')}</option>
-              <option value={t('intermediate')}>{t('intermediate')}</option>
-              <option value={t('advanced')}>{t('advanced')}</option>
-              <option value={t('professional')}>{t('professional')}</option>
-            </select>
+
+        {/* Divider */}
+        <hr className="border-slate-100 dark:border-slate-800" />
+
+        {/* Row 2: Elegant Filter Combos */}
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+              <Filter size={18} className="text-blue-500" />
+              <span className="text-sm font-bold">خيارات التصفية الفنية</span>
+            </div>
+            {hasActiveFilters && (
+              <button
+                onClick={handleResetFilters}
+                className="flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 hover:underline transition-all"
+              >
+                <X size={14} />
+                <span>إعادة تعيين كافة التصفية</span>
+              </button>
+            )}
           </div>
-          <div className="flex items-center gap-2 flex-1 md:flex-none">
-            <select 
-              value={filterCourseType}
-              onChange={(e) => setFilterCourseType(e.target.value)}
-              className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full md:min-w-[140px] dark:text-slate-200"
-            >
-              <option value="جميع الأنواع">جميع الأنواع</option>
-              {courseTypes.map(course => (
-                <option key={course.name} value={course.name}>{course.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-center gap-2 flex-1 md:flex-none">
-            <select 
-              value={filterCourseCycle}
-              onChange={(e) => setFilterCourseCycle(e.target.value)}
-              className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full md:min-w-[140px] dark:text-slate-200"
-            >
-              <option value="جميع الدورات">جميع الدورات (Cycles)</option>
-              {courses.filter(c => Object.keys(currentPrices).includes(c.course_type)).map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-center gap-2 flex-1 md:flex-none">
-            <select 
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="bg-slate-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full md:min-w-[140px] dark:text-slate-200 font-bold text-slate-700"
-            >
-              <option value="الكل">جميع الحالات</option>
-              <option value="نشط">نشط</option>
-              <option value="غير نشط">غير نشط</option>
-            </select>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Filter 1: Technical Level */}
+            <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800/80 p-2 rounded-xl flex items-center gap-2.5 hover:border-blue-300 dark:hover:border-slate-700 transition-colors">
+              <div className="text-blue-500 bg-blue-50 dark:bg-blue-900/40 p-1.5 rounded-lg shrink-0">
+                <SlidersHorizontal size={16} />
+              </div>
+              <div className="flex-1 text-right">
+                <span className="text-[10px] text-slate-400 block font-bold leading-tight">المستوى الفني</span>
+                <select 
+                  value={filterLevel}
+                  onChange={(e) => setFilterLevel(e.target.value)}
+                  className="bg-transparent border-none p-0 text-xs font-bold focus:ring-0 outline-none w-full text-slate-700 dark:text-slate-200 mt-0.5 cursor-pointer"
+                >
+                  <option value={t('all_levels')}>{t('all_levels')}</option>
+                  <option value={t('beginner')}>{t('beginner')}</option>
+                  <option value={t('intermediate')}>{t('intermediate')}</option>
+                  <option value={t('advanced')}>{t('advanced')}</option>
+                  <option value={t('professional')}>{t('professional')}</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Filter 2: Course Type */}
+            <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800/80 p-2 rounded-xl flex items-center gap-2.5 hover:border-blue-300 dark:hover:border-slate-700 transition-colors">
+              <div className="text-indigo-500 bg-indigo-50 dark:bg-indigo-900/40 p-1.5 rounded-lg shrink-0">
+                <Layers size={16} />
+              </div>
+              <div className="flex-1 text-right">
+                <span className="text-[10px] text-slate-400 block font-bold leading-tight">نوع الرياضة/الدورة</span>
+                <select 
+                  value={filterCourseType}
+                  onChange={(e) => setFilterCourseType(e.target.value)}
+                  className="bg-transparent border-none p-0 text-xs font-bold focus:ring-0 outline-none w-full text-slate-700 dark:text-slate-200 mt-0.5 cursor-pointer"
+                >
+                  <option value="جميع الأنواع">جميع الأنواع</option>
+                  {courseTypes.map(course => (
+                    <option key={course.name} value={course.name}>{course.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Filter 3: Course Cycle */}
+            <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800/80 p-2 rounded-xl flex items-center gap-2.5 hover:border-blue-300 dark:hover:border-slate-700 transition-colors">
+              <div className="text-emerald-500 bg-emerald-50 dark:bg-emerald-900/40 p-1.5 rounded-lg shrink-0">
+                <CalendarRange size={16} />
+              </div>
+              <div className="flex-1 text-right">
+                <span className="text-[10px] text-slate-400 block font-bold leading-tight">الدورة المحددة (Cycle)</span>
+                <select 
+                  value={filterCourseCycle}
+                  onChange={(e) => setFilterCourseCycle(e.target.value)}
+                  className="bg-transparent border-none p-0 text-xs font-bold focus:ring-0 outline-none w-full text-slate-700 dark:text-slate-200 mt-0.5 cursor-pointer"
+                >
+                  <option value="جميع الدورات">جميع الدورات (Cycles)</option>
+                  {courses.filter(c => Object.keys(currentPrices).includes(c.course_type)).map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Filter 4: Subscription Status */}
+            <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800/80 p-2 rounded-xl flex items-center gap-2.5 hover:border-blue-300 dark:hover:border-slate-700 transition-colors">
+              <div className="text-amber-500 bg-amber-50 dark:bg-amber-900/40 p-1.5 rounded-lg shrink-0">
+                <CheckCircle2 size={16} />
+              </div>
+              <div className="flex-1 text-right">
+                <span className="text-[10px] text-slate-400 block font-bold leading-tight">حالة اشتراك الطالب</span>
+                <select 
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="bg-transparent border-none p-0 text-xs font-bold focus:ring-0 outline-none w-full text-slate-700 dark:text-slate-200 mt-0.5 cursor-pointer"
+                >
+                  <option value="الكل">جميع الحالات</option>
+                  <option value="نشط">نشط</option>
+                  <option value="غير نشط">غير نشط</option>
+                </select>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1176,14 +1439,6 @@ export default function Students() {
             isOpen={isEvaluationModalOpen}
             onClose={() => {
               setIsEvaluationModalOpen(false);
-              setSelectedStudent(null);
-            }}
-            student={selectedStudent}
-          />
-          <StudentMediaModal
-            isOpen={isMediaModalOpen}
-            onClose={() => {
-              setIsMediaModalOpen(false);
               setSelectedStudent(null);
             }}
             student={selectedStudent}

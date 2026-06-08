@@ -15,7 +15,7 @@ import {
   getDoc
 } from 'firebase/firestore';
 
-import { Student, Coach, Session, Booking, Payment, AppSettings, CoachAttendance, StudentEvaluation, StudentMedia, Product, Transaction, TransactionItem, CoachEvaluation, CoachPayout } from '../types';
+import { Student, Coach, Session, Booking, Payment, AppSettings, CoachAttendance, StudentEvaluation, Product, Transaction, TransactionItem, CoachEvaluation, CoachPayout } from '../types';
 
 enum OperationType {
   CREATE = 'create',
@@ -973,45 +973,7 @@ export const transactionsService = {
   }
 };
 
-export const studentMediaService = {
-  async getAll(studentId: string): Promise<StudentMedia[]> {
-    try {
-      const q = query(
-        collection(db, 'student_media'),
-        where('student_id', '==', studentId),
-        orderBy('date', 'desc')
-      );
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as StudentMedia[];
-    } catch (error) {
-      handleFirestoreError(error, OperationType.LIST, `student_media/${studentId}`);
-      return [];
-    }
-  },
-  async add(data: Omit<StudentMedia, 'id'>): Promise<string> {
-    try {
-      const cleaned = cleanFirestoreData(data);
-      const docRef = await addDoc(collection(db, 'student_media'), cleaned);
-      
-      // Award 5 loyalty points for coach
-      if (data.coach_id) {
-        await trainersService.awardLoyaltyPoints(data.coach_id, 5);
-      }
 
-      // Award 5 loyalty points for student
-      if (data.student_id) {
-        await studentsService.update(data.student_id, {
-          loyalty_points: increment(5)
-        });
-      }
-      
-      return docRef.id;
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'student_media');
-      throw error;
-    }
-  }
-};
 
 export const studentEvaluationsService = {
   async getAll(studentId: string): Promise<StudentEvaluation[]> {
