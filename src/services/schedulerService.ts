@@ -38,11 +38,11 @@ class NotificationScheduler {
       // Skip inactive students
       if (student.status === 'غير نشط') return;
 
-      // Get all payments for this student for the target month
-      // Normalize month check: some payments might have "Month Year" or just "Month"
+      // Get all payments for this student for the target month (excluding product purchases)
       const studentPayments = payments?.filter(p => {
         if (!p.student_id || p.student_id !== student.id) return false;
         if (!p.month) return false;
+        if (p.course_type === 'منتجات') return false; // Ignore product payments
         
         // Match if p.month contains the currentMonthName (e.g. "مايو 2024" contains "مايو")
         // or if they are exactly equal

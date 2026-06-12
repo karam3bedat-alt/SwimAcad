@@ -392,7 +392,8 @@ export default function Reports() {
     
     // Group payments by student to provide a detailed summary per student as requested
     const reportData = students.filter(s => s.status !== 'غير نشط').map(student => {
-      const studentPayments = filteredPayments.filter(p => p.student_id === student.id);
+      // Ignore product payments from monthly subscription payment figures
+      const studentPayments = filteredPayments.filter(p => p.student_id === student.id && p.course_type !== 'منتجات');
       const paid = studentPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
       const required = student.custom_fee || 600;
       const remaining = Math.max(0, required - paid);

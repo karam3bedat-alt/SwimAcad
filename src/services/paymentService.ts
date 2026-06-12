@@ -121,16 +121,24 @@ ${bitPhone}
 
 مرحباً ${studentData.parent_name || 'ولي الأمر العزيز'}،
 
-تم استلام مبلغ الاشتراك بنجاح!
+تم استلام الدفعة بنجاح وتحصيل المبلغ المالي!
 
 📋 تفاصيل الدفعة:
 • الطالب: ${studentData.full_name}
+• الدورة: ${studentData.course_type || '-'}
 • الشهر: ${month}
-• المبلغ: ${amount} ₪
+• المبلغ المدفوع حالياً: *${amount} ₪*
+${studentData.requiredAmount ? `• إجمالي المبلغ المطلوب: *${studentData.requiredAmount} ₪*` : ''}
+${studentData.totalPaid ? `• مجموع المدفوع كلياً: *${studentData.totalPaid} ₪*` : ''}
+${studentData.remainingAmount !== undefined ? (
+  studentData.remainingAmount > 0 
+    ? `⚠️ *المبلغ المتبقي ذمة:* *${studentData.remainingAmount} ₪*`
+    : `🎉 *تم سداد كامل الاشتراك بنجاح!*`
+) : ''}
 • رقم الإيصال: ${studentData.receiptNumber || 'N/A'}
 • التاريخ: ${new Date().toLocaleDateString('ar-EG')}
 
-شكراً جزيلاً لتعاونكم! 🙏
+شكراً جزيلاً لتعاونكم وثقتكم بنا! 🙏
 
 🏊‍♂️ ${academyName}`,
 

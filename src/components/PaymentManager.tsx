@@ -56,6 +56,7 @@ export const PaymentManager: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editingPayment, setEditingPayment] = useState<any>(null);
   const [confirmingPayment, setConfirmingPayment] = useState<any>(null);
+  const [payAmount, setPayAmount] = useState<string>('');
   const [isNewPaymentOpen, setIsNewPaymentOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -112,12 +113,18 @@ export const PaymentManager: React.FC = () => {
         return pMonthStr.trim() === selectedMonthTrimmed || (p.month && p.month.trim() === selectedMonthTrimmed);
       }) || [];
       
-      const totalPaid = studentPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+      // Filter out product payments from subscription calculations (product purchases do not count towards subscription status)
+      const subscriptionPayments = studentPayments.filter(p => p.course_type !== 'منتجات');
+      
+      const totalPaid = subscriptionPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
       
       // Calculate requirement logic: 
-      // 1. Try to find a stored required_amount in the payments for this period
+      // 1. Try to find a stored required_amount in the payments for this period (excluding generic custom and product payments)
       // 2. Fallback to calculation based on current course_type
-      const storedRequiredAmount = Math.max(...studentPayments.filter(p => p.required_amount).map(p => Number(p.required_amount) || 0), 0);
+      const validSubRequiredPayments = subscriptionPayments.filter(p => p.required_amount && p.course_type !== 'دفعة مخصصة');
+      const storedRequiredAmount = validSubRequiredPayments.length > 0 
+        ? Math.max(...validSubRequiredPayments.map(p => Number(p.required_amount) || 0), 0)
+        : 0;
       
       let baseAmount = student.custom_fee || calculateMonthlyFee(student.course_type || student.level, currentConfig.coursePrices);
       
@@ -190,6 +197,7 @@ export const PaymentManager: React.FC = () => {
   // Confirm payment receipt
   const confirmPayment = async (student: any) => {
     setConfirmingPayment(student);
+    setPayAmount(String(student.remainingAmount ?? student.requiredAmount ?? 0));
   };
 
   // Send bulk requests
@@ -442,10 +450,10 @@ export const PaymentManager: React.FC = () => {
           <OverviewTab students={studentsWithStatus} onSend={sendPaymentRequest} onConfirm={confirmPayment} />
         )}
         {activeTab === 'pending' && (
-          <PendingTab students={studentsWithStatus.filter(s => s.status === 'pending')} onSend={sendPaymentRequest} />
+          <PendingTab students={studentsWithStatus.filter(s => s.status === 'pending' || s.status === 'partial')} onSend={sendPaymentRequest} />
         )}
         {activeTab === 'paid' && (
-          <PaidTab students={studentsWithStatus.filter(s => s.status === 'confirmed')} />
+          <PaidTab students={studentsWithStatus.filter(s => s.status === 'confirmed' || s.status === 'partial')} />
         )}
         {activeTab === 'history' && (
           <HistoryTab 
@@ -594,9 +602,18 @@ export const PaymentManager: React.FC = () => {
                 });
               }
 
+              const updatedTotalPaid = (Number(confirmingPayment.totalPaid) || 0) + amount;
+              const updatedRemainingAmount = Math.max(0, (Number(confirmingPayment.requiredAmount) || 0) - updatedTotalPaid);
               const receiptNum = `REC-${Date.now()}-${confirmingPayment.id}`;
               const message = generatePaymentMessage(
-                { ...confirmingPayment, receiptNumber: receiptNum, course_type: courseType }, 
+                { 
+                  ...confirmingPayment, 
+                  receiptNumber: receiptNum, 
+                  course_type: courseType,
+                  totalPaid: updatedTotalPaid,
+                  remainingAmount: updatedRemainingAmount,
+                  requiredAmount: confirmingPayment.requiredAmount
+                }, 
                 amount, 
                 selectedMonth, 
                 'confirmed',
@@ -633,6 +650,8 @@ export const PaymentManager: React.FC = () => {
                     onClick={() => {
                       // Update local state by re-setting confirmingPayment with type
                       setConfirmingPayment({ ...confirmingPayment, paymentType: t.id });
+                      const defaultAmt = t.id === 'subscription' ? (confirmingPayment.remainingAmount ?? confirmingPayment.requiredAmount ?? 0) : 0;
+                      setPayAmount(String(defaultAmt));
                     }}
                     className={cn(
                       "py-2 px-1 rounded-xl text-xs font-bold border transition-all",
@@ -664,12 +683,55 @@ export const PaymentManager: React.FC = () => {
                 <input 
                   name="amount" 
                   type="number" 
-                  defaultValue={confirmingPayment.paymentType === 'subscription' ? confirmingPayment.requiredAmount : 0} 
+                  value={payAmount}
+                  onChange={(e) => setPayAmount(e.target.value)}
                   required 
-                  className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 font-bold text-center" 
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 font-bold text-center text-lg text-emerald-600 focus:ring-2 focus:ring-blue-500 outline-none" 
                 />
               </div>
             </div>
+
+            {(confirmingPayment.paymentType === 'subscription' || !confirmingPayment.paymentType) && (
+              <div className="bg-slate-50 dark:bg-slate-800/30 p-4 rounded-xl space-y-2 text-sm border border-slate-100 dark:border-slate-800">
+                <div className="flex justify-between text-slate-500">
+                  <span>المبلغ المطلوب الكلي للشهر:</span>
+                  <span className="font-bold text-slate-700 dark:text-slate-300">{formatAmount(confirmingPayment.requiredAmount)}</span>
+                </div>
+                <div className="flex justify-between text-slate-500">
+                  <span>المدفوع سابقاً:</span>
+                  <span className="font-bold text-emerald-600">{formatAmount(confirmingPayment.totalPaid)}</span>
+                </div>
+                <div className="flex justify-between text-slate-500 border-b border-dashed border-slate-200 dark:border-slate-700 pb-2">
+                  <span>المتبقي المطلوب للاشتراك:</span>
+                  <span className="font-bold text-rose-600">{formatAmount(confirmingPayment.remainingAmount)}</span>
+                </div>
+                
+                {/* Live after-payment calculation */}
+                <div className="flex justify-between font-bold pt-1">
+                  <span className="text-slate-700 dark:text-slate-200">الرصيد المتبقي بعد هذه الحركة:</span>
+                  <span className={cn(
+                    "text-lg",
+                    Math.max(0, confirmingPayment.remainingAmount - (Number(payAmount) || 0)) > 0
+                      ? "text-rose-600 dark:text-rose-400"
+                      : "text-emerald-600 dark:text-emerald-400"
+                  )}>
+                    {formatAmount(Math.max(0, confirmingPayment.remainingAmount - (Number(payAmount) || 0)))}
+                  </span>
+                </div>
+
+                <div className="mt-2 text-xs text-center font-medium">
+                  {Math.max(0, confirmingPayment.remainingAmount - (Number(payAmount) || 0)) > 0 ? (
+                    <span className="text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 px-3 py-1 rounded-lg inline-block">
+                      ⚠️ سيتم تسجيل دفعة جزئية (سيتبقى دين مالي بذمة الطالب بقيمة {formatAmount(Math.max(0, confirmingPayment.remainingAmount - (Number(payAmount) || 0)))})
+                    </span>
+                  ) : (
+                    <span className="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 px-3 py-1 rounded-lg inline-block">
+                      🎉 سيتم سداد كامل قيمة الاشتراك لهيئة هذا الشهر
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <label className="text-sm font-bold">طريقة الدفع</label>
@@ -727,6 +789,7 @@ export const PaymentManager: React.FC = () => {
                     status: 'pending',
                     loyalty_points: s.loyalty_points || 0
                   });
+                  setPayAmount('0');
                   setIsNewPaymentOpen(false);
                   setSearchQuery('');
                 }}
@@ -1005,7 +1068,7 @@ const OverviewTab = ({ students, onSend, onConfirm }: { students: any[], onSend:
             </p>
           </div>
 
-          {student.status === 'pending' && (
+          {student.status !== 'confirmed' && (
             <div className="flex flex-col gap-2 pt-2 border-t border-slate-50 dark:border-slate-800">
               <div className="flex gap-2">
                 <button
@@ -1050,7 +1113,14 @@ const PendingTab = ({ students, onSend }: { students: any[], onSend: any }) => (
         <div key={student.id} className="border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
           <div>
             <p className="font-bold text-lg text-slate-900 dark:text-slate-100">{student.full_name}</p>
-            <p className="text-slate-600 dark:text-slate-400 text-sm">{student.level} - {formatAmount(student.amount)}</p>
+            <p className="text-slate-600 dark:text-slate-400 text-sm">
+              {student.level} - المطلوب: {formatAmount(student.requiredAmount)}
+            </p>
+            {student.totalPaid > 0 && (
+              <p className="text-emerald-600 dark:text-emerald-400 text-xs font-bold mt-1">
+                المدفوع: {formatAmount(student.totalPaid)} | المتبقي: {formatAmount(student.remainingAmount)}
+              </p>
+            )}
             {student.daysOverdue > 0 && (
               <p className="text-rose-600 dark:text-rose-400 text-xs font-bold mt-1">متأخر {student.daysOverdue} يوم</p>
             )}
@@ -1087,15 +1157,42 @@ const PaidTab = ({ students }: { students: any[] }) => (
     <h3 className="text-lg font-bold mb-6 text-slate-900 dark:text-slate-100">مدفوعات تم استلامها ({students.length})</h3>
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {students.map(student => (
-        <div key={student.id} className="border border-emerald-100 dark:border-emerald-900/30 rounded-2xl p-4 bg-emerald-50 dark:bg-emerald-900/10">
-          <div className="flex justify-between items-center">
+        <div key={student.id} className={cn(
+          "border rounded-2xl p-4 transition-all",
+          student.status === 'partial' 
+            ? "border-amber-100 dark:border-amber-900/30 bg-amber-50/50 dark:bg-amber-900/5"
+            : "border-emerald-100 dark:border-emerald-900/30 bg-emerald-50 dark:bg-emerald-900/10"
+        )}>
+          <div className="flex justify-between items-center bg-transparent">
             <div>
               <p className="font-bold text-lg text-slate-900 dark:text-slate-100">{student.full_name}</p>
-              <p className="text-slate-600 dark:text-slate-400 text-sm">{formatAmount(student.amount)}</p>
+              <p className="text-slate-600 dark:text-slate-400 text-xs font-medium">
+                المجموع المطلوب: {formatAmount(student.requiredAmount)}
+              </p>
+              <p className="text-emerald-600 dark:text-emerald-400 text-sm font-bold mt-1">
+                المدفوع حالياً: {formatAmount(student.totalPaid)}
+              </p>
+              {student.status === 'partial' && (
+                <p className="text-rose-600 dark:text-rose-400 text-xs font-bold mt-1">
+                  المتبقي المستحق: {formatAmount(student.remainingAmount)}
+                </p>
+              )}
             </div>
-            <div className="text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
-              <CheckCircle size={24} />
-              <span className="font-bold">تم الدفع</span>
+            <div className={cn(
+              "flex items-center gap-2 font-bold",
+              student.status === 'partial' ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"
+            )}>
+              {student.status === 'partial' ? (
+                <>
+                  <Clock size={24} />
+                  <span>دفع جزئي</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle size={24} />
+                  <span>تم الدفع</span>
+                </>
+              )}
             </div>
           </div>
           {student.receiptNumber && (
@@ -1215,6 +1312,14 @@ const StatusBadge = ({ status, daysOverdue }: { status: string, daysOverdue: num
     );
   }
   
+  if (status === 'partial') {
+    return (
+      <span className="px-3 py-1 bg-amber-50 dark:bg-amber-900/10 text-amber-600 dark:text-amber-400 rounded-full text-xs font-bold border border-amber-200 dark:border-amber-800/30">
+        دفع جزئي
+      </span>
+    );
+  }
+  
   if (daysOverdue > 5) {
     return (
       <span className="px-3 py-1 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 rounded-full text-xs font-bold">
@@ -1224,7 +1329,7 @@ const StatusBadge = ({ status, daysOverdue }: { status: string, daysOverdue: num
   }
   
   return (
-    <span className="px-3 py-1 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-full text-xs font-bold">
+    <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-full text-xs font-bold">
       معلق
     </span>
   );

@@ -88,6 +88,7 @@ export function NotificationCenter() {
           if (student.status === 'نشط') {
             const studentPayments = payments.filter(p => {
               if (!p || !p.date) return false;
+              if (p.course_type === 'منتجات') return false; // Ignore product payments from monthly subscription calculations
               const pDate = new Date(p.date);
               const pMonthStr = pDate?.toLocaleString('ar-EG', { month: 'long', year: 'numeric' }) || '';
               return p.student_id === student.id && (pMonthStr === currentMonthYear || p.month === currentMonthYear);

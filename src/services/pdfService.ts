@@ -180,7 +180,8 @@ export const generateDetailedFinancialReport = (payments: any[], students: any[]
   
   // Calculate aggregated data per student for this month
   const reportData = students.filter(s => s.status !== 'inactive').map(student => {
-    const studentPayments = payments.filter(p => p.student_id === student.id);
+    // Ignore product purchases in subscription financial reports
+    const studentPayments = payments.filter(p => p.student_id === student.id && p.course_type !== 'منتجات');
     const paid = studentPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
     const required = student.custom_fee || 600;
     const remaining = Math.max(0, required - paid);

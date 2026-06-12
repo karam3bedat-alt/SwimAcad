@@ -470,7 +470,7 @@ export default function Courses() {
               const matchesSearch = s.full_name.toLowerCase().includes(studentSearchQuery.toLowerCase()) || 
                                    s.phone.includes(studentSearchQuery);
               
-              const studentPaymentsInPeriod = periodPayments.filter(p => p.student_id === s.id);
+              const studentPaymentsInPeriod = periodPayments.filter(p => p.student_id === s.id && p.course_type !== 'منتجات');
               const totalPaid = studentPaymentsInPeriod.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
               const isPaid = totalPaid > 0;
 
@@ -581,7 +581,7 @@ export default function Courses() {
                               const studentBookings = courseBookings.filter(b => b.student_id === student.id);
                               const presentCount = studentBookings.filter(b => b.status === 'حضر').length;
                               
-                              const studentPaymentsInPeriod = periodPayments.filter(p => p.student_id === student.id);
+                              const studentPaymentsInPeriod = periodPayments.filter(p => p.student_id === student.id && p.course_type !== 'منتجات');
                               const totalPaid = studentPaymentsInPeriod.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
                               const isPaid = totalPaid > 0;
 
