@@ -16,6 +16,7 @@ export const useAddPayment = () => {
     mutationFn: (paymentData: Omit<Payment, 'id'>) => paymentsService.add(paymentData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     }
   });
 };
@@ -27,6 +28,7 @@ export const useDeletePayment = () => {
     mutationFn: (id: string) => paymentsService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     }
   });
 };
@@ -39,6 +41,7 @@ export const useUpdatePayment = () => {
       paymentsService.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     }
   });
 };

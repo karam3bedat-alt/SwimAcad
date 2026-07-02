@@ -18,6 +18,7 @@ export const useAddTransaction = () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['students'] }); // Because loyalty points or remaining sessions might change
       queryClient.invalidateQueries({ queryKey: ['products'] }); // Because stock changed
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] }); // Because revenue counts may update
       toast.success('تمت العملية بنجاح');
     }
   });

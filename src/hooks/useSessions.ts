@@ -16,6 +16,7 @@ export const useDeleteSession = () => {
     mutationFn: (id: string) => sessionsService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     }
   });
 };
@@ -27,6 +28,7 @@ export const useAddSession = () => {
     mutationFn: (sessionData: Omit<Session, 'id'>) => sessionsService.add(sessionData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     }
   });
 };
@@ -38,6 +40,7 @@ export const useUpdateSession = () => {
     mutationFn: ({ id, data }: { id: string; data: Partial<Session> }) => sessionsService.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     }
   });
 };

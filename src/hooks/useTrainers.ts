@@ -84,6 +84,7 @@ export const useAddTrainer = () => {
     mutationFn: (trainerData: Omit<Coach, 'id'>) => trainersService.add(trainerData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trainers'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     }
   });
 };
@@ -95,6 +96,7 @@ export const useUpdateTrainer = () => {
     mutationFn: ({ id, data }: { id: string; data: Partial<Coach> }) => trainersService.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trainers'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     }
   });
 };
@@ -106,6 +108,7 @@ export const useDeleteTrainer = () => {
     mutationFn: (id: string) => trainersService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trainers'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     }
   });
 };

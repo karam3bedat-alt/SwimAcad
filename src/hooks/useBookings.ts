@@ -16,6 +16,7 @@ export const useAddBooking = () => {
     mutationFn: (bookingData: Omit<Booking, 'id'>) => bookingsService.add(bookingData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     }
   });
 };
@@ -27,6 +28,7 @@ export const useUpdateBookingStatus = () => {
     mutationFn: ({ id, status }: { id: string; status: string }) => bookingsService.updateStatus(id, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     }
   });
 };
@@ -38,6 +40,7 @@ export const useDeleteBooking = () => {
     mutationFn: (id: string) => bookingsService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     }
   });
 };

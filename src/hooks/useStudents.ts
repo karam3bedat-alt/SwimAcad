@@ -38,6 +38,7 @@ export const useAddStudent = () => {
     onSuccess: () => {
       // إعادة جلب قائمة الطلاب بعد الإضافة
       queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     }
   });
 };
@@ -50,6 +51,7 @@ export const useUpdateStudent = () => {
     mutationFn: ({ id, data }: { id: string; data: Partial<Student> }) => studentsService.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     }
   });
 };
@@ -62,6 +64,7 @@ export const useDeleteStudent = () => {
     mutationFn: (id: string) => studentsService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     }
   });
 };
