@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Modal } from './Modal';
 import { Student, Payment, Booking, Coach, CourseCycle } from '../types';
-import { Loader2, User, Wallet, Calendar, Star, Image as ImageIcon, Phone, MapPin, Award, UserCheck, Clock, RefreshCw, Users, AlertCircle as AlertIcon, DollarSign } from 'lucide-react';
+import { Loader2, User, Wallet, Calendar, Star, Image as ImageIcon, Phone, MapPin, Award, UserCheck, Clock, RefreshCw, Users, AlertCircle as AlertIcon, DollarSign, CheckCircle2, Check } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { usePayments } from '../hooks/usePayments';
+import { usePayments, useAddPayment } from '../hooks/usePayments';
 import { useTransactions } from '../hooks/useTransactions';
 import { useBookings } from '../hooks/useBookings';
 import { useTrainers } from '../hooks/useTrainers';
@@ -13,6 +13,7 @@ import { useStudentEvaluations } from '../hooks/useStudents';
 import { StarRating } from './StudentCoachFeatures';
 import { format } from 'date-fns';
 import { useI18n } from '../lib/LanguageContext';
+import { toast } from 'react-hot-toast';
 
 interface StudentProfileModalProps {
   isOpen: boolean;
@@ -36,9 +37,70 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
 
   if (!student) return null;
 
+  const [attendanceScope, setAttendanceScope] = useState<'current' | 'all'>('current');
+  const [settlePaymentKey, setSettlePaymentKey] = useState<string | null>(null);
+  const [settleAmount, setSettleAmount] = useState<number>(0);
+  const [settleMethod, setSettleMethod] = useState<'cash' | 'bit' | 'paybox' | 'transfer'>('cash');
+  const [isSettling, setIsSettling] = useState(false);
+  const addPaymentMutation = useAddPayment();
+
+  const handleSettleDebt = async (key: string, month: string, courseType: string, requiredAmount: number) => {
+    if (settleAmount <= 0) {
+      toast.error('الرجاء إدخال مبلغ صحيح');
+      return;
+    }
+    setIsSettling(true);
+    const toastId = toast.loading('جاري تسجيل دفعة تسوية الدين...');
+    try {
+      await addPaymentMutation.mutateAsync({
+        student_id: student.id,
+        student_name: student.full_name,
+        amount: settleAmount,
+        required_amount: requiredAmount,
+        method: settleMethod,
+        month: month === 'غير محدد' ? format(new Date(), 'yyyy-MM') : month,
+        course_type: courseType === 'دورة' ? (student.course_type || '') : courseType,
+        date: new Date().toISOString(),
+        notes: `تسوية جزء من متبقي الاشتراك (${month}) بقيمة ${settleAmount} ₪. طريقة الدفع: ${settleMethod === 'cash' ? 'نقدي' : settleMethod.toUpperCase()}`
+      });
+      toast.success('تم تسجيل دفعة التسوية بنجاح', { id: toastId });
+      setSettlePaymentKey(null);
+    } catch (err: any) {
+      toast.error(err.message || 'فشل تسجيل الدفعة', { id: toastId });
+    } finally {
+      setIsSettling(false);
+    }
+  };
+
   const studentPayments = allPayments.filter(p => p.student_id === student.id);
   const studentTransactions = allTransactions.filter(t => t.student_id === student.id);
   const studentBookings = allBookings.filter(b => b.student_id === student.id);
+
+  const filteredBookings = React.useMemo(() => {
+    if (attendanceScope === 'all' || !student.subscription_start_date) {
+      return studentBookings;
+    }
+    try {
+      const startDate = new Date(student.subscription_start_date);
+      const endDate = student.subscription_end_date ? new Date(student.subscription_end_date) : null;
+      
+      return studentBookings.filter(b => {
+        if (!b.date) return false;
+        const bookingDate = new Date(b.date);
+        // Compare dates ignoring times
+        const bTime = new Date(bookingDate.getFullYear(), bookingDate.getMonth(), bookingDate.getDate()).getTime();
+        const sTime = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()).getTime();
+        if (bTime < sTime) return false;
+        if (endDate) {
+          const eTime = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate()).getTime();
+          if (bTime > eTime) return false;
+        }
+        return true;
+      });
+    } catch {
+      return studentBookings;
+    }
+  }, [studentBookings, attendanceScope, student]);
 
   const totalPaid = studentPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
   const totalTransactions = studentTransactions.reduce((sum, t) => sum + (Number(t.total_amount) || 0), 0);
@@ -246,12 +308,13 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
                         <th className="px-4 py-3 font-bold text-slate-500">تم سداده</th>
                         <th className="px-4 py-3 font-bold text-slate-500">المبلغ المتبقي</th>
                         <th className="px-4 py-3 font-bold text-slate-500">الحالة</th>
+                        <th className="px-4 py-3 font-bold text-slate-500">الإجراء</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {Object.entries(groupedPayments).length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="px-4 py-8 text-center text-slate-400 italic">لا توجد اشتراكات مسجلة.</td>
+                          <td colSpan={6} className="px-4 py-8 text-center text-slate-400 italic">لا توجد اشتراكات مسجلة.</td>
                         </tr>
                       ) : (
                         Object.entries(groupedPayments).map(([key, data]) => {
@@ -284,6 +347,23 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
                                   <span className="text-slate-400">-</span>
                                 )}
                               </td>
+                              <td className="px-4 py-3">
+                                {balance > 0 ? (
+                                  <button
+                                    onClick={() => {
+                                      setSettlePaymentKey(key === settlePaymentKey ? null : key);
+                                      setSettleAmount(balance);
+                                      setSettleMethod('cash');
+                                    }}
+                                    className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold text-[10px] transition-all flex items-center gap-1 shadow-sm"
+                                  >
+                                    <DollarSign size={10} />
+                                    <span>تسديد المتبقي</span>
+                                  </button>
+                                ) : (
+                                  <span className="text-emerald-600 font-bold text-[10px]">سدد بالكامل</span>
+                                )}
+                              </td>
                             </tr>
                           );
                         })
@@ -293,6 +373,88 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
                 </div>
               </div>
             </div>
+
+            {/* Inline Debt Settlement Form */}
+            {settlePaymentKey && (() => {
+              const gp = groupedPayments[settlePaymentKey];
+              if (!gp) return null;
+              const firstP = gp.payments[0];
+              const balance = Math.max(0, gp.required - gp.total);
+              return (
+                <div className="bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 p-4 rounded-2xl space-y-3 animate-in slide-in-from-top-2 duration-200">
+                  <div className="flex items-center justify-between">
+                    <h5 className="text-xs font-black text-amber-800 dark:text-amber-400 flex items-center gap-1.5">
+                      <DollarSign size={14} className="animate-pulse" />
+                      تسجيل دفعة تسوية للدين المستحق لـ {settlePaymentKey.split('-')[1]}
+                    </h5>
+                    <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 rounded-lg">
+                      المتبقي الكلي: {balance} ₪
+                    </span>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 mb-1">المبلغ المراد سداده (₪)</label>
+                      <input
+                        type="number"
+                        value={settleAmount}
+                        max={balance}
+                        onChange={(e) => setSettleAmount(Math.min(balance, Math.max(0, Number(e.target.value))))}
+                        className="w-full text-xs font-black p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:border-amber-500 focus:outline-none"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 mb-1">طريقة الدفع</label>
+                      <div className="grid grid-cols-4 gap-1">
+                        {(['cash', 'bit', 'paybox', 'transfer'] as const).map((method) => (
+                          <button
+                            key={method}
+                            type="button"
+                            onClick={() => setSettleMethod(method)}
+                            className={cn(
+                              "py-1.5 rounded-xl text-[9px] font-bold transition-all border",
+                              settleMethod === method
+                                ? "bg-amber-500 border-amber-500 text-white shadow-sm"
+                                : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 hover:bg-slate-50"
+                            )}
+                          >
+                            {method === 'cash' ? 'نقدي' : method.toUpperCase()}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-end gap-2">
+                      <button
+                        type="button"
+                        disabled={isSettling}
+                        onClick={() => {
+                          handleSettleDebt(
+                            settlePaymentKey,
+                            firstP?.month || 'غير محدد',
+                            firstP?.course_type || 'دورة',
+                            gp.required
+                          );
+                        }}
+                        className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-lg shadow-emerald-100 dark:shadow-none transition-all flex items-center justify-center gap-1 disabled:opacity-50"
+                      >
+                        {isSettling ? <Loader2 className="animate-spin" size={14} /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                        <span>تأكيد التسديد</span>
+                      </button>
+                      
+                      <button
+                        type="button"
+                        onClick={() => setSettlePaymentKey(null)}
+                        className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-bold transition-all"
+                      >
+                        إلغاء
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* List of All Transactions/Payments */}
             <div className="space-y-3">
@@ -355,28 +517,70 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
       case 'attendance':
         return (
           <div className="space-y-4 font-['Cairo'] animate-in fade-in slide-in-from-bottom-4">
-            <div className="grid grid-cols-3 gap-2 mb-4">
-              <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100 text-center">
-                <p className="text-[10px] text-emerald-600 font-bold mb-1">حضر</p>
-                <p className="text-xl font-black text-emerald-700">{studentBookings.filter(b => b.status === 'حضر').length}</p>
+            {/* Attendance Scope Toggle */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-2xl border border-slate-100 dark:border-slate-800/60">
+              <div>
+                <span className="text-xs font-black text-slate-700 dark:text-slate-300 block">نطاق عرض سجل الحضور</span>
+                {student.subscription_start_date && (
+                  <span className="text-[10px] text-slate-400 font-bold block">
+                    تاريخ بدء الباقة الحالية: {getSafeFormattedDate(student.subscription_start_date)}
+                  </span>
+                )}
               </div>
-              <div className="bg-rose-50 p-3 rounded-xl border border-rose-100 text-center">
-                <p className="text-[10px] text-rose-600 font-bold mb-1">غاب</p>
-                <p className="text-xl font-black text-rose-700">{studentBookings.filter(b => b.status === 'غائب').length}</p>
+              <div className="flex bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-1 rounded-xl w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setAttendanceScope('current')}
+                  className={cn(
+                    "flex-1 sm:flex-initial px-3 py-1.5 text-xs font-black rounded-lg transition-all",
+                    attendanceScope === 'current'
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                  )}
+                >
+                  الباقة الحالية (من جديد)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAttendanceScope('all')}
+                  className={cn(
+                    "flex-1 sm:flex-initial px-3 py-1.5 text-xs font-black rounded-lg transition-all",
+                    attendanceScope === 'all'
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                  )}
+                >
+                  كل السجل التاريخي
+                </button>
               </div>
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 mb-2">
+              <div className="bg-emerald-50 dark:bg-emerald-950/20 p-3 rounded-xl border border-emerald-100 dark:border-emerald-900/40 text-center">
+                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mb-1">حضر</p>
+                <p className="text-xl font-black text-emerald-700 dark:text-emerald-300">{filteredBookings.filter(b => b.status === 'حضر').length}</p>
+              </div>
+              <div className="bg-rose-50 dark:bg-rose-950/20 p-3 rounded-xl border border-rose-100 dark:border-rose-900/40 text-center">
+                <p className="text-[10px] text-rose-600 dark:text-rose-400 font-bold mb-1">غاب</p>
+                <p className="text-xl font-black text-rose-700 dark:text-rose-300">{filteredBookings.filter(b => b.status === 'غائب').length}</p>
+              </div>
+              <div className="bg-slate-50 dark:bg-slate-900/40 p-3 rounded-xl border border-slate-100 dark:border-slate-800 text-center">
                 <p className="text-[10px] text-slate-500 font-bold mb-1">الإجمالي</p>
-                <p className="text-xl font-black text-slate-600">{studentBookings.length}</p>
+                <p className="text-xl font-black text-slate-600 dark:text-slate-300">{filteredBookings.length}</p>
               </div>
             </div>
             
             <div className="max-h-[50vh] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
               {isLoadingBookings ? (
                 <div className="flex justify-center p-8"><Loader2 className="animate-spin text-blue-600" /></div>
-              ) : studentBookings.length === 0 ? (
-                <p className="text-center text-slate-400 py-8 italic font-['Cairo'] text-sm">لا توجد سجلات حضور مسجلة.</p>
+              ) : filteredBookings.length === 0 ? (
+                <p className="text-center text-slate-400 py-8 italic font-['Cairo'] text-sm">
+                  {attendanceScope === 'current' 
+                    ? 'لا توجد سجلات حضور مسجلة في الباقة الحالية حتى الآن.' 
+                    : 'لا توجد سجلات حضور مسجلة لهذا الطالب.'}
+                </p>
               ) : (
-                studentBookings.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(b => (
+                filteredBookings.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(b => (
                   <div key={b.id} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-3 rounded-xl flex justify-between items-center shadow-sm">
                     <div>
                       <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">
