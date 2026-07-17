@@ -179,7 +179,7 @@ export const generateDetailedFinancialReport = (payments: any[], students: any[]
   drawArabicText(doc, 'التقرير المالي التفصيلي والشامل', width / 2, 15, 20, '#101828', true);
   
   // Calculate aggregated data per student for this month
-  const reportData = students.filter(s => s.status !== 'inactive').map(student => {
+  const reportData = students.map(student => {
     // Ignore product purchases in subscription financial reports
     const studentPayments = payments.filter(p => p.student_id === student.id && p.course_type !== 'منتجات');
     const paid = studentPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);

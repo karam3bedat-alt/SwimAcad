@@ -170,6 +170,35 @@ export const PaymentManager: React.FC = () => {
       if ((s.isStudentInactive || s.isExpired) && s.totalPaid === 0) {
         return false;
       }
+
+      // If custom date range is enabled, only show students related to the selected period
+      if (isCustomRange && customStartDate && customEndDate) {
+        try {
+          const start = new Date(customStartDate);
+          const end = new Date(customEndDate);
+          end.setHours(23, 59, 59, 999);
+          
+          // 1. Check if registration date is within interval
+          const regDate = s.registration_date ? new Date(s.registration_date) : null;
+          const isRegIn = regDate && regDate >= start && regDate <= end;
+          
+          // 2. Check if subscription start/end overlaps with the custom range
+          const subStart = s.subscription_start_date ? new Date(s.subscription_start_date) : null;
+          const subEnd = s.subscription_end_date ? new Date(s.subscription_end_date) : null;
+          const isSubActiveIn = !!(subStart && subStart <= end && (!subEnd || subEnd >= start));
+          const isSubStartIn = !!(subStart && subStart >= start && subStart <= end);
+          
+          // 3. Check if has payments in this period
+          const hasPaymentsIn = s.totalPaid > 0;
+          
+          if (!isRegIn && !isSubStartIn && !isSubActiveIn && !hasPaymentsIn) {
+            return false;
+          }
+        } catch (e) {
+          // ignore parsing error, fallback to true
+        }
+      }
+
       return true;
     });
   }, [students, payments, selectedMonth, currentConfig.coursePrices, isCustomRange, customStartDate, customEndDate]);

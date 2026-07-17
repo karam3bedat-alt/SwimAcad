@@ -125,6 +125,11 @@ class AutoNotificationService {
     const notifications: ScheduledNotification[] = [];
     
     students?.forEach(student => {
+      const isStudentInactive = (student.status as any) === 'غير نشط' || (student.status as any) === 'inactive';
+      const isExpired = student.subscription_end_date && 
+                        !isNaN(new Date(student.subscription_end_date).getTime()) && 
+                        new Date(student.subscription_end_date) < new Date();
+
       const hasPaid = payments?.some(p => {
         if (!p || !p.date) return false;
         const pDate = new Date(p.date);
@@ -132,8 +137,15 @@ class AutoNotificationService {
                (pDate?.toLocaleString('ar-EG', { month: 'long', year: 'numeric' }) === month || p.month === month);
       });
 
+      // Exclude student if:
+      // - They are inactive ("غير نشط") and didn't make any payment in this period
+      // - Or their subscription has expired (isExpired), and they didn't make any payment in this period
+      if ((isStudentInactive || isExpired) && !hasPaid) {
+        return;
+      }
+
       if (!hasPaid) {
-        const amount = calculateMonthlyFee(student.level);
+        const amount = student.custom_fee || calculateMonthlyFee(student.course_type || student.level, customConfig?.coursePrices);
         const dueDate = new Date();
         dueDate.setDate(1);
         

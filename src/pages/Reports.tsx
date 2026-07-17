@@ -346,7 +346,29 @@ export default function Reports() {
       reportMonth = `من ${customStartDate} إلى ${customEndDate}`;
     }
     
-    generateDetailedFinancialReport(filteredPayments, students, reportMonth);
+    // Filter students: keep those who either registered in the selected range, OR have at least one payment in the selected range
+    const relevantStudents = students.filter(student => {
+      const hasPayment = filteredPayments.some(p => p.student_id === student.id);
+      
+      let registeredInPeriod = false;
+      if (student.registration_date) {
+        const date = new Date(student.registration_date);
+        if (isCustomRange && customStartDate && customEndDate) {
+          const start = new Date(customStartDate);
+          const end = new Date(customEndDate);
+          end.setHours(23, 59, 59, 999);
+          registeredInPeriod = date >= start && date <= end;
+        } else {
+          const monthMatch = selectedMonth ? (date.getMonth() + 1).toString().padStart(2, '0') === selectedMonth : true;
+          const yearMatch = selectedYear ? date.getFullYear().toString() === selectedYear : true;
+          registeredInPeriod = monthMatch && yearMatch;
+        }
+      }
+      
+      return hasPayment || (registeredInPeriod && student.status !== 'غير نشط');
+    });
+    
+    generateDetailedFinancialReport(filteredPayments, relevantStudents, reportMonth);
   };
 
   const handleExportCoachAttendance = () => {
@@ -377,7 +399,7 @@ export default function Reports() {
       'اسم ولي الأمر': s.parent_name || '-',
       'تاريخ التسجيل': s.registration_date ? new Date(s.registration_date).toLocaleDateString('ar-EG') : '-',
       'ملاحظات طبية': s.medical_notes || 'لا يوجد',
-      'الحالة': s.status === 'active' ? 'نشط' : 'غير نشط'
+      'الحالة': s.status || 'غير نشط'
     }));
     exportToExcel(data, 'تقرير_الطلاب_المفصل');
   };
@@ -390,8 +412,30 @@ export default function Reports() {
       reportMonth = `من ${customStartDate} إلى ${customEndDate}`;
     }
     
+    // Filter students: keep those who either registered in the selected range, OR have at least one payment in the selected range
+    const relevantStudents = students.filter(student => {
+      const hasPayment = filteredPayments.some(p => p.student_id === student.id);
+      
+      let registeredInPeriod = false;
+      if (student.registration_date) {
+        const date = new Date(student.registration_date);
+        if (isCustomRange && customStartDate && customEndDate) {
+          const start = new Date(customStartDate);
+          const end = new Date(customEndDate);
+          end.setHours(23, 59, 59, 999);
+          registeredInPeriod = date >= start && date <= end;
+        } else {
+          const monthMatch = selectedMonth ? (date.getMonth() + 1).toString().padStart(2, '0') === selectedMonth : true;
+          const yearMatch = selectedYear ? date.getFullYear().toString() === selectedYear : true;
+          registeredInPeriod = monthMatch && yearMatch;
+        }
+      }
+      
+      return hasPayment || (registeredInPeriod && student.status !== 'غير نشط');
+    });
+    
     // Group payments by student to provide a detailed summary per student as requested
-    const reportData = students.filter(s => s.status !== 'غير نشط').map(student => {
+    const reportData = relevantStudents.map(student => {
       // Ignore product payments from monthly subscription payment figures
       const studentPayments = filteredPayments.filter(p => p.student_id === student.id && p.course_type !== 'منتجات');
       const paid = studentPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
@@ -412,7 +456,7 @@ export default function Reports() {
         'طرق الدفع': methods,
         'نوع الدفعة': types,
         'رقم الهاتف': student.phone || student.parent_phone || '-',
-        'حالة الطالب': student.status === 'نشط' ? 'نشط' : 'غير نشط'
+        'حالة الطالب': student.status || 'غير نشط'
       };
     });
 

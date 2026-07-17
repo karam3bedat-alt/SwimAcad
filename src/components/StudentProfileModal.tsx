@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Modal } from './Modal';
 import { Student, Payment, Booking, Coach, CourseCycle } from '../types';
-import { Loader2, User, Wallet, Calendar, Star, Image as ImageIcon, Phone, MapPin, Award, UserCheck, Clock, RefreshCw, Users, AlertCircle as AlertIcon, DollarSign, CheckCircle2, Check } from 'lucide-react';
+import { Loader2, User, Wallet, Calendar, Star, Image as ImageIcon, Phone, MapPin, Award, UserCheck, Clock, RefreshCw, Users, AlertCircle as AlertIcon, DollarSign, CheckCircle2, Check, Trash2, Edit2 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { usePayments, useAddPayment } from '../hooks/usePayments';
+import { usePayments, useAddPayment, useDeletePayment, useUpdatePayment } from '../hooks/usePayments';
 import { useTransactions } from '../hooks/useTransactions';
 import { useBookings } from '../hooks/useBookings';
 import { useTrainers } from '../hooks/useTrainers';
@@ -43,6 +43,74 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
   const [settleMethod, setSettleMethod] = useState<'cash' | 'bit' | 'paybox' | 'transfer'>('cash');
   const [isSettling, setIsSettling] = useState(false);
   const addPaymentMutation = useAddPayment();
+  const deletePaymentMutation = useDeletePayment();
+  const updatePaymentMutation = useUpdatePayment();
+
+  const [selectedPaymentForEdit, setSelectedPaymentForEdit] = useState<Payment | null>(null);
+  const [editAmount, setEditAmount] = useState<number>(0);
+  const [editMethod, setEditMethod] = useState<string>('cash');
+  const [editMonth, setEditMonth] = useState<string>('');
+  const [editCourseType, setEditCourseType] = useState<string>('');
+  const [editNotes, setEditNotes] = useState<string>('');
+  const [editDate, setEditDate] = useState<string>('');
+  const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
+  const [isUpdatingPayment, setIsUpdatingPayment] = useState(false);
+
+  const handleEditPaymentClick = (payment: Payment) => {
+    setSelectedPaymentForEdit(payment);
+    setEditAmount(payment.amount);
+    setEditMethod(payment.method || 'cash');
+    setEditMonth(payment.month || '');
+    setEditCourseType(payment.course_type || '');
+    setEditNotes(payment.notes || '');
+    setEditDate(payment.date ? format(new Date(payment.date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
+  };
+
+  const handleDeletePayment = async (paymentId: string) => {
+    if (!window.confirm('هل أنت متأكد من رغبتك في حذف هذه الدفعة نهائياً؟')) {
+      return;
+    }
+    setIsDeletingId(paymentId);
+    const toastId = toast.loading('جاري حذف الدفعة...');
+    try {
+      await deletePaymentMutation.mutateAsync(paymentId);
+      toast.success('تم حذف الدفعة بنجاح', { id: toastId });
+      setSelectedPaymentForEdit(null);
+    } catch (err: any) {
+      toast.error(err.message || 'فشل حذف الدفعة', { id: toastId });
+    } finally {
+      setIsDeletingId(null);
+    }
+  };
+
+  const handleUpdatePayment = async () => {
+    if (!selectedPaymentForEdit) return;
+    if (editAmount <= 0) {
+      toast.error('الرجاء إدخال مبلغ صحيح');
+      return;
+    }
+    setIsUpdatingPayment(true);
+    const toastId = toast.loading('جاري تحديث بيانات الدفعة...');
+    try {
+      await updatePaymentMutation.mutateAsync({
+        id: selectedPaymentForEdit.id,
+        data: {
+          amount: editAmount,
+          method: editMethod,
+          month: editMonth,
+          course_type: editCourseType,
+          notes: editNotes,
+          date: editDate ? new Date(editDate).toISOString() : new Date().toISOString()
+        }
+      });
+      toast.success('تم تحديث الدفعة بنجاح', { id: toastId });
+      setSelectedPaymentForEdit(null);
+    } catch (err: any) {
+      toast.error(err.message || 'فشل تحديث الدفعة', { id: toastId });
+    } finally {
+      setIsUpdatingPayment(false);
+    }
+  };
 
   const handleSettleDebt = async (key: string, month: string, courseType: string, requiredAmount: number) => {
     if (settleAmount <= 0) {
@@ -322,7 +390,7 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
                           const isFullyPaid = data.required > 0 ? (data.total >= data.required - 0.5) : (data.total > 0);
                           return (
                             <tr key={key} className="hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors">
-                              <td className="px-4 py-3 font-bold text-slate-700 dark:text-slate-300">{selectedStudent.course_id && key.includes('غير محدد') ? courses.find(c => c.id === selectedStudent.course_id)?.name || key : key}</td>
+                              <td className="px-4 py-3 font-bold text-slate-700 dark:text-slate-300">{student.course_id && key.includes('غير محدد') ? courses.find(c => c.id === student.course_id)?.name || key : key}</td>
                               <td className="px-4 py-3 text-slate-500 font-medium">{data.required > 0 ? `${data.required.toLocaleString()} ₪` : '-'}</td>
                               <td className="px-4 py-3 text-emerald-600 font-bold">{data.total.toLocaleString()} ₪</td>
                               <td className="px-4 py-3">
@@ -472,7 +540,20 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
                     ...studentPayments.map(p => ({ ...p, type: 'payment' as const })),
                     ...studentTransactions.map(t => ({ ...t, type: 'transaction' as const }))
                   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((item, idx) => (
-                    <div key={idx} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-3 rounded-xl flex justify-between items-center shadow-sm hover:border-blue-200 transition-all hover:bg-slate-50/50">
+                    <div 
+                      key={idx} 
+                      onClick={() => {
+                        if (item.type === 'payment') {
+                          handleEditPaymentClick(item as any);
+                        }
+                      }}
+                      className={cn(
+                        "bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-3 rounded-xl flex justify-between items-center shadow-sm transition-all",
+                        item.type === 'payment' 
+                          ? "cursor-pointer hover:border-blue-200 hover:bg-blue-50/10 dark:hover:bg-blue-900/10" 
+                          : "hover:bg-slate-50/50"
+                      )}
+                    >
                       <div className="flex-1">
                         <div className="flex flex-wrap items-center gap-2 mb-1">
                           <span className={cn(
@@ -502,9 +583,18 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
                         {item.type === 'transaction' ? (
                           <span className="text-[10px] font-bold text-blue-500 block whitespace-nowrap">{(item as any).items?.length} أصناف</span>
                         ) : (
-                          <div className="text-emerald-500">
-                            <UserCheck size={14} />
-                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditPaymentClick(item as any);
+                            }}
+                            className="p-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 rounded-lg transition-colors flex items-center gap-1 text-[10px] font-black"
+                            title="تعديل أو حذف الدفعة"
+                          >
+                            <Edit2 size={12} />
+                            <span>تعديل/حذف</span>
+                          </button>
                         )}
                       </div>
                     </div>
@@ -648,9 +738,8 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
     }
   };
 
-  const selectedStudent = student; // For readability in inner logic
-
   return (
+    <>
     <Modal isOpen={isOpen} onClose={onClose} title={`ملف الطالب: ${student.full_name}`} size="xl">
       <div className="flex flex-col lg:flex-row gap-6 min-h-[60vh]">
         {/* Sidebar Tabs */}
@@ -690,6 +779,124 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
         </div>
       </div>
     </Modal>
+
+    <Modal 
+      isOpen={selectedPaymentForEdit !== null} 
+      onClose={() => setSelectedPaymentForEdit(null)} 
+      title="تعديل أو حذف الدفعة"
+      size="md"
+    >
+      {selectedPaymentForEdit && (
+        <div className="space-y-4 font-['Cairo'] text-right" dir="rtl">
+          <p className="text-xs text-slate-500 font-bold mb-3">
+            يمكنك تعديل بيانات هذه الدفعة أو حذفها نهائياً من السجل المالي للطالب.
+          </p>
+
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">المبلغ (₪)</label>
+              <input
+                type="number"
+                value={editAmount}
+                onChange={(e) => setEditAmount(Number(e.target.value))}
+                className="w-full text-sm font-bold p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">طريقة الدفع</label>
+                <select
+                  value={editMethod}
+                  onChange={(e) => setEditMethod(e.target.value)}
+                  className="w-full text-sm font-bold p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:border-blue-500 focus:outline-none"
+                >
+                  <option value="cash">نقدي (Cash)</option>
+                  <option value="bit">Bit</option>
+                  <option value="paybox">Paybox</option>
+                  <option value="transfer">تحويل بنكي</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">تاريخ الدفعة</label>
+                <input
+                  type="date"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  className="w-full text-sm font-bold p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">دورة / تصنيف</label>
+                <input
+                  type="text"
+                  value={editCourseType}
+                  onChange={(e) => setEditCourseType(e.target.value)}
+                  placeholder="مثال: سباحة، لياقة"
+                  className="w-full text-sm font-bold p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">الشهر المالي</label>
+                <input
+                  type="text"
+                  value={editMonth}
+                  onChange={(e) => setEditMonth(e.target.value)}
+                  placeholder="مثال: يوليو 2026"
+                  className="w-full text-sm font-bold p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">ملاحظات</label>
+              <textarea
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                className="w-full text-sm font-bold p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:border-blue-500 focus:outline-none min-h-[60px]"
+                placeholder="ملاحظات إضافية عن الدفعة..."
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <button
+              type="button"
+              disabled={isUpdatingPayment}
+              onClick={handleUpdatePayment}
+              className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-lg shadow-blue-100 dark:shadow-none transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+            >
+              {isUpdatingPayment ? <Loader2 className="animate-spin" size={14} /> : <CheckCircle2 size={14} />}
+              <span>حفظ التعديلات</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={isDeletingId !== null}
+              onClick={() => handleDeletePayment(selectedPaymentForEdit.id)}
+              className="px-4 py-2.5 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+            >
+              {isDeletingId ? <Loader2 className="animate-spin" size={14} /> : <Trash2 size={14} />}
+              <span>حذف الدفعة</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedPaymentForEdit(null)}
+              className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold transition-all"
+            >
+              إلغاء
+            </button>
+          </div>
+        </div>
+      )}
+    </Modal>
+    </>
   );
 }
 
