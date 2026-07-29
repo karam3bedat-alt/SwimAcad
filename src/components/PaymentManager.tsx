@@ -314,7 +314,7 @@ export const PaymentManager: React.FC = () => {
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
-          {isAdmin && (
+          {isAdmin() && (
             <button
               onClick={() => setIsSettingsOpen(true)}
               className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"

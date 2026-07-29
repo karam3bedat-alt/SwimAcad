@@ -32,7 +32,11 @@ import {
   PieChart,
   Pie,
   Cell,
-  Legend
+  Legend,
+  LineChart,
+  Line,
+  AreaChart,
+  Area
 } from 'recharts';
 import { exportToExcel } from '../lib/utils';
 import { Card } from '../components/Card';
@@ -68,6 +72,34 @@ export default function Reports() {
   const [activeReportTab, setActiveReportTab] = useState<'general' | 'forecasting' | 'coupons'>('general');
   const [forecastingFilter, setForecastingFilter] = useState<'all' | 'overdue' | 'next30' | 'next60' | 'next90'>('all');
   const [forecastingSearch, setForecastingSearch] = useState('');
+
+  // Dynamic Forecasting Simulation States
+  const [forecastScenario, setForecastScenario] = useState<'realistic' | 'optimistic' | 'pessimistic' | 'custom'>('realistic');
+  const [churnRate, setChurnRate] = useState(5);
+  const [growthRate, setGrowthRate] = useState(10);
+  const [recoveryRate, setRecoveryRate] = useState(80);
+  const [priceChange, setPriceChange] = useState(0);
+
+  // Auto-update parameters when scenario changes
+  const handleScenarioChange = (scenario: 'realistic' | 'optimistic' | 'pessimistic' | 'custom') => {
+    setForecastScenario(scenario);
+    if (scenario === 'realistic') {
+      setChurnRate(5);
+      setGrowthRate(10);
+      setRecoveryRate(80);
+      setPriceChange(0);
+    } else if (scenario === 'optimistic') {
+      setChurnRate(2);
+      setGrowthRate(20);
+      setRecoveryRate(95);
+      setPriceChange(5);
+    } else if (scenario === 'pessimistic') {
+      setChurnRate(12);
+      setGrowthRate(2);
+      setRecoveryRate(50);
+      setPriceChange(-5);
+    }
+  };
 
   const { data: appSettings } = useSettings();
   const currentPrices = useMemo(() => {
@@ -169,6 +201,107 @@ export default function Reports() {
       studentList
     };
   }, [students, currentPrices]);
+
+  // Average monthly product sales estimation from actual transactions
+  const avgMonthlyProductSales = useMemo(() => {
+    if (transactions.length === 0) return 1500;
+    const dates = transactions.map(t => new Date(t.date).getTime());
+    if (dates.length === 0) return 1500;
+    const minDate = Math.min(...dates);
+    const maxDate = Math.max(...dates);
+    const diffMonths = Math.max(1, Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24 * 30.4)));
+    const totalProductRev = transactions.reduce((sum: number, tx: any) => {
+      const prodSum = (tx.items || []).filter((i: any) => i.type === 'product').reduce((s: number, i: any) => s + (i.total || 0), 0);
+      return sum + prodSum;
+    }, 0);
+    return Math.round(totalProductRev / diffMonths) || 1500;
+  }, [transactions]);
+
+  // Advanced financial indicators and forecasting
+  const advancedFinancials = useMemo(() => {
+    const activeStudentsList = students.filter(s => s.status === 'نشط');
+    
+    // MRR (Monthly Recurring Revenue)
+    const mrr = activeStudentsList.reduce((sum, s) => {
+      const fee = s.custom_fee || (s.course_type ? currentPrices[s.course_type] : null) || 600;
+      return sum + (Number(fee) || 600);
+    }, 0);
+
+    // ARR (Annual Recurring Revenue)
+    const arr = mrr * 12;
+
+    // ARPU (Average Revenue Per User)
+    const arpu = activeStudentsList.length > 0 ? Math.round(mrr / activeStudentsList.length) : 0;
+
+    // Student Lifetime Value (LTV) estimation (assuming average retention of 8 months based on current active trends)
+    const estimatedRetentionMonths = 8;
+    const ltv = arpu * estimatedRetentionMonths;
+
+    // Churn rate from historical data: percentage of inactive students out of total historical students
+    const totalStudents = students.length;
+    const inactiveCount = students.filter(s => s.status === 'غير نشط').length;
+    const historicalChurnRate = totalStudents > 0 ? Math.round((inactiveCount / totalStudents) * 100) : 0;
+
+    // Build the 6-month predictive forecast
+    const overdueAmount = forecastingData.totals.overdue;
+    const forecast: Array<{
+      monthName: string;
+      mrr: number;
+      newSignupRevenue: number;
+      churnLoss: number;
+      overdueRecovery: number;
+      productSales: number;
+      totalProjected: number;
+      cumulativeIncome: number;
+    }> = [];
+
+    let currentMRR = mrr;
+    let cumulative = 0;
+
+    const nextMonths = Array.from({ length: 6 }, (_, idx) => {
+      const d = new Date();
+      d.setMonth(d.getMonth() + idx);
+      return d.toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' });
+    });
+
+    nextMonths.forEach((monthName, idx) => {
+      // growth gain in terms of revenue
+      const newSignupRevenue = Math.round(currentMRR * (growthRate / 100) * (1 + priceChange / 100));
+      // churn loss in terms of revenue
+      const churnLoss = Math.round(currentMRR * (churnRate / 100));
+      // Overdue is recovered in the first month based on the recovery rate
+      const overdueRecovery = idx === 0 ? Math.round(overdueAmount * (recoveryRate / 100)) : 0;
+      // Product sales
+      const productSales = avgMonthlyProductSales;
+
+      // Project MRR for the next month
+      const projectedMRR = currentMRR + newSignupRevenue - churnLoss;
+      const totalProjected = projectedMRR + overdueRecovery + productSales;
+      cumulative += totalProjected;
+
+      forecast.push({
+        monthName,
+        mrr: Math.round(currentMRR),
+        newSignupRevenue,
+        churnLoss,
+        overdueRecovery,
+        productSales,
+        totalProjected,
+        cumulativeIncome: cumulative
+      });
+
+      currentMRR = projectedMRR;
+    });
+
+    return {
+      mrr,
+      arr,
+      arpu,
+      ltv,
+      historicalChurnRate,
+      forecast
+    };
+  }, [students, currentPrices, growthRate, churnRate, recoveryRate, priceChange, forecastingData.totals.overdue, avgMonthlyProductSales]);
 
   // Coupons and Loyalty Points Analytics Memo
   const AVAILABLE_PROMO_CODES = useMemo(() => [
@@ -1040,87 +1173,335 @@ export default function Reports() {
             </div>
           </div>
 
-          {/* Forecasting Visual Chart */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-6">رسم بياني لتوقعات التدفقات النقدية القادمة</h3>
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={forecastingData.chartData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:stroke-slate-800" />
-                    <XAxis 
-                      dataKey="name" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fill: '#64748b', fontSize: 11 }} 
-                    />
-                    <YAxis 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fill: '#64748b', fontSize: 11 }} 
-                    />
-                    <Tooltip 
-                      formatter={(value: number) => [`${(value || 0).toLocaleString()} ₪`, 'التدفق المالي المتوقع']}
-                      contentStyle={{ 
-                        borderRadius: '12px', 
-                        border: 'none', 
-                        boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
-                        backgroundColor: '#1e293b',
-                        color: '#fff'
-                      }}
-                    />
-                    <Bar dataKey="amount" fill="#3b82f6" radius={[6, 6, 0, 0]} barSize={45}>
-                      {forecastingData.chartData.map((entry, index) => {
-                        const colors = ['#f43f5e', '#3b82f6', '#6366f1', '#10b981'];
-                        return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
-                      })}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+          {/* Section: Advanced Dynamic Forecasting Simulator */}
+          <div className="bg-slate-50 dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
+              <div>
+                <h3 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <Sparkles className="text-blue-600 animate-pulse" size={20} />
+                  <span>محاكي نمذجة الأرباح والتنبؤ التفاعلي</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  قم باختيار أحد السيناريوهات المالية الجاهزة أو عدل المتغيرات يدوياً لدراسة توقعات الدخل والأرباح الصافية للأكاديمية على مدار الـ 6 أشهر القادمة.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {[
+                  { id: 'realistic', name: 'السيناريو الواقعي' },
+                  { id: 'optimistic', name: 'السيناريو المتفائل 🚀' },
+                  { id: 'pessimistic', name: 'السيناريو المتحفظ ⚠️' },
+                  { id: 'custom', name: 'سيناريو مخصص 🛠️' }
+                ].map((sc) => (
+                  <button
+                    key={sc.id}
+                    onClick={() => handleScenarioChange(sc.id as any)}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      forecastScenario === sc.id
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-200 dark:shadow-none font-extrabold'
+                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750'
+                    }`}
+                  >
+                    {sc.name}
+                  </button>
+                ))}
               </div>
             </div>
 
-            <div className="bg-slate-50 dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 flex flex-col justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-slate-800 dark:text-white mb-2 flex items-center gap-1.5">
-                  <Sparkles size={16} className="text-blue-500" />
-                  <span>التحليل الذكي للتدفق</span>
-                </h3>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
-                  بناءً على الطلاب النشطين المسجلين حالياً والذين يمتلكون اشتراكاً شهرياً مستمراً، يتم تتبع تواريخ التجديد وتقدير التدفق المالي كالتالي:
-                </p>
-
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              {/* Dynamic Sliders */}
+              <div className="lg:col-span-2 bg-white dark:bg-slate-950 p-5 rounded-2xl border border-slate-100 dark:border-slate-850 space-y-5">
+                <h4 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">ضبط المتغيرات الافتراضية</h4>
+                
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 p-2.5 bg-white dark:bg-slate-800 rounded-xl shadow-sm">
-                    <span className="font-bold flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-                      <span>متأخرات في التجديد:</span>
-                    </span>
-                    <span className="font-black text-slate-900 dark:text-white">{forecastingData.studentList.filter(s => s.bucket === 'overdue').length} بطل</span>
+                  {/* Slider 1: Growth Rate */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-bold text-slate-700 dark:text-slate-300">معدل نمو المشتركين الجدد شهرياً:</span>
+                      <span className="font-mono font-black text-blue-600 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded-md">+{growthRate}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="50"
+                      value={growthRate}
+                      disabled={forecastScenario !== 'custom'}
+                      onChange={(e) => setGrowthRate(Number(e.target.value))}
+                      className="w-full accent-blue-600 cursor-pointer disabled:opacity-50"
+                    />
+                    <div className="flex justify-between text-[10px] text-slate-400">
+                      <span>ثبات (0%)</span>
+                      <span>نمو قوي (50%)</span>
+                    </div>
                   </div>
 
-                  <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 p-2.5 bg-white dark:bg-slate-800 rounded-xl shadow-sm">
-                    <span className="font-bold flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-                      <span>المستحق قريباً (30 يوم):</span>
-                    </span>
-                    <span className="font-black text-slate-900 dark:text-white">{forecastingData.studentList.filter(s => s.bucket === 'next30').length} بطل</span>
+                  {/* Slider 2: Churn Rate */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-bold text-slate-700 dark:text-slate-300">معدل انسحاب/تسرب الطلاب شهرياً (Churn):</span>
+                      <span className={`font-mono font-black px-2 py-0.5 rounded-md ${churnRate > 8 ? 'text-rose-600 bg-rose-50 dark:bg-rose-950/40' : 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40'}`}>{churnRate}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="30"
+                      value={churnRate}
+                      disabled={forecastScenario !== 'custom'}
+                      onChange={(e) => setChurnRate(Number(e.target.value))}
+                      className="w-full accent-blue-600 cursor-pointer disabled:opacity-50"
+                    />
+                    <div className="flex justify-between text-[10px] text-slate-400">
+                      <span>رائع (0%)</span>
+                      <span>مرتفع جداً (30%)</span>
+                    </div>
                   </div>
 
-                  <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 p-2.5 bg-white dark:bg-slate-800 rounded-xl shadow-sm">
-                    <span className="font-bold flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
-                      <span>استحقاق متوسط (30-60 يوم):</span>
-                    </span>
-                    <span className="font-black text-slate-900 dark:text-white">{forecastingData.studentList.filter(s => s.bucket === 'next60').length} بطل</span>
+                  {/* Slider 3: Recovery Rate */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-bold text-slate-700 dark:text-slate-300">معدل تحصيل المتأخرات والذمم (الشهر الأول):</span>
+                      <span className="font-mono font-black text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-md">{recoveryRate}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="5"
+                      value={recoveryRate}
+                      disabled={forecastScenario !== 'custom'}
+                      onChange={(e) => setRecoveryRate(Number(e.target.value))}
+                      className="w-full accent-blue-600 cursor-pointer disabled:opacity-50"
+                    />
+                    <div className="flex justify-between text-[10px] text-slate-400">
+                      <span>شطب الديون (0%)</span>
+                      <span>تحصيل كامل (100%)</span>
+                    </div>
+                  </div>
+
+                  {/* Slider 4: Price adjustment */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-bold text-slate-700 dark:text-slate-300">تعديل متوسط قيمة الاشتراك (الأسعار):</span>
+                      <span className={`font-mono font-black px-2 py-0.5 rounded-md ${priceChange >= 0 ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50'}`}>{priceChange >= 0 ? `+${priceChange}` : priceChange}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="-20"
+                      max="50"
+                      step="5"
+                      value={priceChange}
+                      disabled={forecastScenario !== 'custom'}
+                      onChange={(e) => setPriceChange(Number(e.target.value))}
+                      className="w-full accent-blue-600 cursor-pointer disabled:opacity-50"
+                    />
+                    <div className="flex justify-between text-[10px] text-slate-400">
+                      <span>خصم 20%-</span>
+                      <span>زيادة 50%+</span>
+                    </div>
+                  </div>
+                </div>
+
+                {forecastScenario !== 'custom' && (
+                  <p className="text-[10px] text-slate-400 italic bg-slate-50 dark:bg-slate-900 p-2 rounded-lg text-center font-bold">
+                    * قم باختيار "سيناريو مخصص 🛠️" بالأعلى للتحكم الكامل في المتغيرات بحرية تامة.
+                  </p>
+                )}
+              </div>
+
+              {/* Advanced Indicators (SaaS-like financial index) */}
+              <div className="lg:col-span-2 bg-white dark:bg-slate-950 p-5 rounded-2xl border border-slate-100 dark:border-slate-850 flex flex-col justify-between">
+                <div>
+                  <h4 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-4">مؤشرات الصحة والأداء المالي للأكاديمية</h4>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl">
+                      <p className="text-[10px] text-slate-500 font-bold">الإيراد المتكرر الشهري (MRR)</p>
+                      <p className="text-base font-black text-slate-900 dark:text-white mt-1">{advancedFinancials.mrr.toLocaleString()} ₪</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl">
+                      <p className="text-[10px] text-slate-500 font-bold">الإيراد السنوي المتوقع (ARR)</p>
+                      <p className="text-base font-black text-blue-600 dark:text-blue-400 mt-1">{advancedFinancials.arr.toLocaleString()} ₪</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl">
+                      <p className="text-[10px] text-slate-500 font-bold">متوسط دخل البطل (ARPU)</p>
+                      <p className="text-base font-black text-emerald-600 dark:text-emerald-400 mt-1">{advancedFinancials.arpu.toLocaleString()} ₪/شهرياً</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl">
+                      <p className="text-[10px] text-slate-500 font-bold">القيمة الحياتية للبطل (LTV)</p>
+                      <p className="text-base font-black text-purple-600 dark:text-purple-400 mt-1">{advancedFinancials.ltv.toLocaleString()} ₪</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-4 text-[10px]">
+                  <div>
+                    <span className="text-slate-400 block font-bold">معدل الانسحاب التاريخي:</span>
+                    <span className="font-extrabold text-slate-700 dark:text-slate-300 text-xs mt-0.5 block">{advancedFinancials.historicalChurnRate}%</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block font-bold">مبيعات منتجات تقديرية:</span>
+                    <span className="font-extrabold text-slate-700 dark:text-slate-300 text-xs mt-0.5 block">{avgMonthlyProductSales.toLocaleString()} ₪/شهرياً</span>
                   </div>
                 </div>
               </div>
+            </div>
 
-              <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800">
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 italic">
-                  * تعتمد الحسابات على فرضية التزام الطلاب النشطين بتجديد باقاتهم المعتادة عند نهايتها.
-                </p>
+            {/* Visual Charts: Projection area chart */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 bg-white dark:bg-slate-950 p-5 rounded-2xl border border-slate-100 dark:border-slate-850">
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-950 dark:text-white">منحنى الدخل الإجمالي المخطط (6 أشهر)</h4>
+                    <p className="text-[10px] text-slate-400 mt-0.5">يوضح المخطط الدخل المتوقع لكل شهر مضافاً له تحصيل المتأخرات ومبيعات المنتجات مقابل الدخل التراكمي المجمع.</p>
+                  </div>
+                  <div className="flex gap-4 text-[10px] font-bold">
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-blue-500" />الدخل الشهري المتوقع</span>
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />الدخل التراكمي المجمع</span>
+                  </div>
+                </div>
+
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={advancedFinancials.forecast}>
+                      <defs>
+                        <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
+                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                        </linearGradient>
+                        <linearGradient id="colorCumulative" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:stroke-slate-800" />
+                      <XAxis 
+                        dataKey="monthName" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: '#64748b', fontSize: 10 }} 
+                      />
+                      <YAxis 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: '#64748b', fontSize: 10 }} 
+                      />
+                      <Tooltip 
+                        formatter={(value: number) => [`${(value || 0).toLocaleString()} ₪`]}
+                        contentStyle={{ 
+                          borderRadius: '12px', 
+                          border: 'none', 
+                          boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                          backgroundColor: '#1e293b',
+                          color: '#fff'
+                        }}
+                      />
+                      <Area type="monotone" dataKey="totalProjected" name="الدخل المالي الإجمالي المتوقع" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorIncome)" />
+                      <Area type="monotone" dataKey="cumulativeIncome" name="الدخل التراكمي المجمع" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorCumulative)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* AI Strategic Advisor Box */}
+              <div className="bg-white dark:bg-slate-950 p-5 rounded-2xl border border-slate-100 dark:border-slate-850 flex flex-col justify-between">
+                <div>
+                  <h4 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">المرشد المالي ومستشار الأكاديمية الذكي</h4>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed mb-4">
+                    تحليل فوري لقوة النموذج المالي بناءً على المدخلات المحددة للسيناريو الحالي:
+                  </p>
+
+                  <div className="space-y-3.5">
+                    {/* Churn check */}
+                    <div className="flex gap-3 text-xs leading-relaxed">
+                      <span className="text-lg shrink-0">
+                        {churnRate <= 4 ? '🌸' : (churnRate <= 8 ? '💡' : '⚠️')}
+                      </span>
+                      <div>
+                        <p className="font-extrabold text-slate-800 dark:text-white">إدارة الاحتفاظ بالطلاب (Retention)</p>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          {churnRate <= 4 
+                            ? 'معدل تسرب ممتاز ومستقر للغاية! الطلاب يحبون الأكاديمية ويجدون فائدة مستمرة.' 
+                            : (churnRate <= 8 
+                              ? 'معدل تسرب طبيعي ومقبول. يوصى بتقديم استبيان رضا شهري دوري للأهالي.' 
+                              : 'معدل تسرب مقلق! تذكر أن الحفاظ على بطل حالي يكلّف 5 مرات أقل من جلب بطل جديد.')}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Growth check */}
+                    <div className="flex gap-3 text-xs leading-relaxed">
+                      <span className="text-lg shrink-0">
+                        {growthRate >= 15 ? '🚀' : (growthRate >= 7 ? '📈' : '🛑')}
+                      </span>
+                      <div>
+                        <p className="font-extrabold text-slate-800 dark:text-white">خطط استقطاب الأبطال (Growth)</p>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          {growthRate >= 15 
+                            ? 'نمو صاروخي وتوسع رائع! خطط للتوسع التشغيلي وتجهيز كادر مساعد فوراً تفادياً لتكدس التدريب.' 
+                            : (growthRate >= 7 
+                              ? 'معدل نمو صحي ومستدام. الأكاديمية تكتسب سمعة جيدة تدريجياً في المنطقة.' 
+                              : 'النمو متواضع وبحاجة لتنشيط. يوصى بعمل إعلانات ممولة محلية أو إطلاق مسابقة إحالة للأصدقاء.')}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Debt check */}
+                    <div className="flex gap-3 text-xs leading-relaxed">
+                      <span className="text-lg shrink-0">
+                        {recoveryRate >= 80 ? '💵' : '💡'}
+                      </span>
+                      <div>
+                        <p className="font-extrabold text-slate-800 dark:text-white">كفاءة تحصيل المديونيات</p>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          {recoveryRate >= 80 
+                            ? 'معدل تحصيل رائع. استمر في استخدام تذكيرات الواتساب لضمان التجديد في الموعد.' 
+                            : 'كفاءة تحصيل ديون متدنية. فكر بتقديم تسييل مريح (مثل خصم بسيط لمن يدفع الاشتراك السنوي أو الربعي سلفاً).'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-850 text-[10px] text-slate-400 italic">
+                  * تعتمد النصائح على أفضل ممارسات إدارة وتطوير الأكاديميات الرياضية ومراكز التدريب التنافسية للأطفال.
+                </div>
+              </div>
+            </div>
+
+            {/* New: Detailed forecasting table breakdown by month */}
+            <div className="bg-white dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-850 overflow-hidden shadow-sm">
+              <div className="px-5 py-4 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-850">
+                <h4 className="text-sm font-black text-slate-900 dark:text-white">الجدول المجدول للأرقام المتوقعة شهرياً</h4>
+                <p className="text-[10px] text-slate-400 mt-0.5">استعراض دقيق لمصادر وتفاصيل الدخل الشهري التقديري الناتج عن محاكاة النموذج الحالي.</p>
+              </div>
+              <div className="overflow-x-auto text-[11px]">
+                <table className="w-full text-right">
+                  <thead>
+                    <tr className="bg-slate-50/50 dark:bg-slate-900/50 text-slate-500 font-bold border-b border-slate-100 dark:border-slate-850">
+                      <th className="p-3">الفترة الزمنية</th>
+                      <th className="p-3">رأس المال المشترك المستفتح (MRR)</th>
+                      <th className="p-3 text-emerald-600">المشتركين الجدد (+)</th>
+                      <th className="p-3 text-rose-500">انسحابات متوقعة (-)</th>
+                      <th className="p-3 text-indigo-500">متحصلات الذمم (+)</th>
+                      <th className="p-3 text-purple-500">مبيعات المنتجات التقديرية (+)</th>
+                      <th className="p-3 font-extrabold text-slate-900 dark:text-white">الدخل الإجمالي المتوقع</th>
+                      <th className="p-3 font-extrabold text-slate-900 dark:text-white">التدفق التراكمي الكلي</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-850 font-medium text-slate-600 dark:text-slate-300">
+                    {advancedFinancials.forecast.map((f, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/20 dark:hover:bg-slate-900/10 transition-colors">
+                        <td className="p-3 font-extrabold text-slate-900 dark:text-white">{f.monthName}</td>
+                        <td className="p-3 font-mono">{f.mrr.toLocaleString()} ₪</td>
+                        <td className="p-3 font-mono text-emerald-600 font-bold">+{f.newSignupRevenue.toLocaleString()} ₪</td>
+                        <td className="p-3 font-mono text-rose-500 font-bold">-{f.churnLoss.toLocaleString()} ₪</td>
+                        <td className="p-3 font-mono text-indigo-500">{f.overdueRecovery > 0 ? `+${f.overdueRecovery.toLocaleString()} ₪` : '-'}</td>
+                        <td className="p-3 font-mono text-purple-500">+{f.productSales.toLocaleString()} ₪</td>
+                        <td className="p-3 font-mono font-black text-blue-600 dark:text-blue-400">{f.totalProjected.toLocaleString()} ₪</td>
+                        <td className="p-3 font-mono font-black text-slate-900 dark:text-white bg-slate-50/30 dark:bg-slate-900/10">{f.cumulativeIncome.toLocaleString()} ₪</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>

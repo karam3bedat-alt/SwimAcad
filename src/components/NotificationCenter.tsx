@@ -22,6 +22,16 @@ interface Notification {
 export function NotificationCenter() {
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [dismissedIds, setDismissedIds] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return JSON.parse(localStorage.getItem('dismissed_notifications') || '[]');
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  });
   const dropdownRef = useRef<HTMLDivElement>(null);
   
   const { data: students } = useStudents();
@@ -170,13 +180,14 @@ export function NotificationCenter() {
         });
       }
 
-      setNotifications(newNotifications);
+      const finalNotifications = newNotifications.filter(n => !dismissedIds.includes(n.id));
+      setNotifications(finalNotifications);
     };
 
     generateNotifications();
     const interval = setInterval(generateNotifications, 1000 * 60 * 15); // Refresh every 15 mins
     return () => clearInterval(interval);
-  }, [students, payments, bookings]);
+  }, [students, payments, bookings, dismissedIds]);
 
   const unreadCount = notifications.length;
 
@@ -194,6 +205,30 @@ export function NotificationCenter() {
       
       const encodedMessage = encodeURIComponent(message);
       window.open(`https://wa.me/${notification.phone.replace(/\D/g, '')}?text=${encodedMessage}`, '_blank');
+    }
+  };
+
+  const handleDismiss = (id: string) => {
+    const updated = [...dismissedIds, id];
+    setDismissedIds(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('dismissed_notifications', JSON.stringify(updated));
+    }
+  };
+
+  const handleClearAll = () => {
+    const currentActiveIds = notifications.map(n => n.id);
+    const updated = Array.from(new Set([...dismissedIds, ...currentActiveIds]));
+    setDismissedIds(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('dismissed_notifications', JSON.stringify(updated));
+    }
+  };
+
+  const handleRestoreAll = () => {
+    setDismissedIds([]);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('dismissed_notifications');
     }
   };
 
@@ -236,9 +271,19 @@ export function NotificationCenter() {
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">تذكيرات الدروس والمدفوعات</p>
                 </div>
               </div>
-              <button onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
-                <X size={20} />
-              </button>
+              <div className="flex items-center gap-2">
+                {notifications.length > 0 && (
+                  <button 
+                    onClick={handleClearAll}
+                    className="text-[10px] font-black text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/20 px-2 py-1 rounded-lg transition-colors"
+                  >
+                    مسح الكل
+                  </button>
+                )}
+                <button onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-850">
+                  <X size={20} />
+                </button>
+              </div>
             </div>
 
             {/* Content */}
@@ -250,6 +295,15 @@ export function NotificationCenter() {
                   </div>
                   <p className="text-slate-900 dark:text-slate-100 font-bold mb-1">كل شيء تمام!</p>
                   <p className="text-sm text-slate-500">لا توجد تنبيهات عاجلة في الوقت الحالي.</p>
+                  
+                  {dismissedIds.length > 0 && (
+                    <button
+                      onClick={handleRestoreAll}
+                      className="mt-4 text-[10px] font-bold text-blue-600 hover:text-blue-700 bg-blue-50 dark:bg-blue-950/20 px-3 py-1.5 rounded-xl transition-all"
+                    >
+                      استرجاع الإشعارات الممسوحة ({dismissedIds.length})
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="divide-y divide-slate-50 dark:divide-slate-800">
@@ -277,15 +331,28 @@ export function NotificationCenter() {
                             {notification.message}
                           </p>
                           
-                          {notification.phone && (
+                          <div className="flex gap-2 mt-3">
+                            {notification.phone && (
+                              <button 
+                                onClick={() => handleWhatsApp(notification)}
+                                className="flex-1 flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white py-2 rounded-xl text-xs font-black shadow-lg shadow-emerald-200 dark:shadow-none transition-all active:scale-95"
+                              >
+                                <MessageCircle size={14} />
+                                إرسال واتساب
+                              </button>
+                            )}
                             <button 
-                              onClick={() => handleWhatsApp(notification)}
-                              className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white py-2.5 rounded-xl text-xs font-black shadow-lg shadow-emerald-200 dark:shadow-none transition-all active:scale-95"
+                              onClick={() => handleDismiss(notification.id)}
+                              className={cn(
+                                "flex items-center justify-center gap-1 bg-slate-100 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-950/30 text-slate-500 hover:text-rose-600 py-2 rounded-xl text-xs font-bold transition-all px-3",
+                                !notification.phone && "w-full"
+                              )}
+                              title="مسح التنبيه"
                             >
-                              <MessageCircle size={16} />
-                              إرسال واتساب لولي الأمر
+                              <X size={12} />
+                              <span>مسح</span>
                             </button>
-                          )}
+                          </div>
                         </div>
                       </div>
                     </div>

@@ -6,15 +6,6 @@ import * as dotenv from "dotenv";
 
 dotenv.config();
 
-const ai = new GoogleGenAI({ 
-  apiKey: process.env.GEMINI_API_KEY || "",
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
-    }
-  }
-});
-
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -107,6 +98,22 @@ async function startServer() {
 
     const tryGenerate = async (): Promise<void> => {
       try {
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+          console.warn("GEMINI_API_KEY is not configured. Returning local generated insights fallback.");
+          res.json(generateFallbackInsights());
+          return;
+        }
+
+        const ai = new GoogleGenAI({ 
+          apiKey,
+          httpOptions: {
+            headers: {
+              'User-Agent': 'aistudio-build',
+            }
+          }
+        });
+
         const prompt = `
           بصفتك محلل أعمال ذكي لأكاديمية تعليم سباحة تسمى Sharks، قم بتحليل البيانات التالية للفترة المستهدفة (${targetDate || 'اليوم'}) وتقديم 4-6 رؤى واقتراحات استراتيجية.
           

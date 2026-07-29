@@ -74,7 +74,7 @@ service cloud.firestore {
 
     match /payments/{paymentId} {
       allow read: if isSignedIn();
-      allow create: if isAdmin() || isCoach();
+      allow create, update: if isAdmin() || isCoach();
       allow delete: if isAdmin();
     }
 
