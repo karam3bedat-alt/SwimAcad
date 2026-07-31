@@ -277,7 +277,7 @@ export function RenewalModal({ isOpen, onClose, student }: RenewalModalProps) {
         amount: amountPaid,
         required_amount: finalTotal,
         method: paymentMethod,
-        month: format(new Date(startDate), 'yyyy-MM'),
+        month: new Date(startDate).toLocaleString('ar-EG', { month: 'long', year: 'numeric' }),
         course_type: courseType,
         date: new Date().toISOString(),
         notes: `تجديد باقة ${durationLabel}. تذكرة رقمية.${amountPaid < finalTotal ? ` (متبقي مستحق: ${finalTotal - amountPaid} ₪)` : ' (مسدد بالكامل)'}`

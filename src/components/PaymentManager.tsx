@@ -667,6 +667,7 @@ export const PaymentManager: React.FC = () => {
 
             <div className="space-y-2">
               <label className="text-sm font-bold block text-right">خيار الدفع</label>
+              <input type="hidden" name="type" value={confirmingPayment.paymentType || 'subscription'} />
               <div className="grid grid-cols-3 gap-2">
                 {[
                   { id: 'subscription', label: 'تجديد اشتراك' },
@@ -689,7 +690,6 @@ export const PaymentManager: React.FC = () => {
                         : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600"
                     )}
                   >
-                    <input type="hidden" name="type" value={confirmingPayment.paymentType || 'subscription'} />
                     {t.label}
                   </button>
                 ))}

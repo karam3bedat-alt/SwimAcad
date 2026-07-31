@@ -23,3 +23,32 @@ export const useAddTransaction = () => {
     }
   });
 };
+
+export const useUpdateTransaction = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<Transaction> }) =>
+      transactionsService.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      toast.success('تم تحديث العملية بنجاح');
+    }
+  });
+};
+
+export const useDeleteTransaction = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => transactionsService.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      toast.success('تم حذف العملية بنجاح');
+    }
+  });
+};

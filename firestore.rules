@@ -111,9 +111,8 @@ service cloud.firestore {
     }
 
     match /transactions/{transactionId} {
-      allow read, list: if isAdmin();
-      allow create: if isAdmin() || isCoach();
-      allow update, delete: if isAdmin();
+      allow read, list: if isSignedIn();
+      allow create, update, delete: if isAdmin() || isCoach();
     }
 
     match /insights/{insightId} {

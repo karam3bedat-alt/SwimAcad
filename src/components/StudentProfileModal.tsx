@@ -4,7 +4,7 @@ import { Student, Payment, Booking, Coach, CourseCycle } from '../types';
 import { Loader2, User, Wallet, Calendar, Star, Image as ImageIcon, Phone, MapPin, Award, UserCheck, Clock, RefreshCw, Users, AlertCircle as AlertIcon, DollarSign, CheckCircle2, Check, Trash2, Edit2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { usePayments, useAddPayment, useDeletePayment, useUpdatePayment } from '../hooks/usePayments';
-import { useTransactions } from '../hooks/useTransactions';
+import { useTransactions, useDeleteTransaction, useUpdateTransaction } from '../hooks/useTransactions';
 import { useBookings } from '../hooks/useBookings';
 import { useTrainers } from '../hooks/useTrainers';
 import { useCourses } from '../hooks/useCourses';
@@ -45,6 +45,7 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
   const addPaymentMutation = useAddPayment();
   const deletePaymentMutation = useDeletePayment();
   const updatePaymentMutation = useUpdatePayment();
+  const deleteTransactionMutation = useDeleteTransaction();
 
   const [selectedPaymentForEdit, setSelectedPaymentForEdit] = useState<Payment | null>(null);
   const [editAmount, setEditAmount] = useState<number>(0);
@@ -171,8 +172,13 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
   }, [studentBookings, attendanceScope, student]);
 
   const totalPaid = studentPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-  const totalTransactions = studentTransactions.reduce((sum, t) => sum + (Number(t.total_amount) || 0), 0);
-  const overallTotal = totalPaid + totalTransactions;
+  // Only add product purchases from transactions to avoid double-counting subscription payments
+  const totalProductTransactions = studentTransactions.reduce((sum, t) => {
+    if (!t.items || t.items.length === 0) return sum;
+    const prodSum = t.items.filter(i => i.type === 'product').reduce((s, i) => s + (Number(i.total) || 0), 0);
+    return sum + prodSum;
+  }, 0);
+  const overallTotal = totalPaid + totalProductTransactions;
 
   const currentPrices = (settings?.payment_config as any)?.coursePrices || {};
   const standardPrice = student.course_type ? (currentPrices[student.course_type] || 0) : 0;
@@ -329,7 +335,15 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
         const groupedPayments: Record<string, { total: number, required: number, payments: Payment[] }> = {};
         
         studentPayments.forEach(p => {
-          const key = `${p.month || 'غير محدد'}-${p.course_type || 'دورة'}`;
+          let monthName = p.month || 'غير محدد';
+          if (p.date) {
+            try {
+              monthName = new Date(p.date).toLocaleString('ar-EG', { month: 'long', year: 'numeric' });
+            } catch {
+              // fallback to p.month
+            }
+          }
+          const key = `${monthName}-${p.course_type || 'دورة'}`;
           if (!groupedPayments[key]) {
             groupedPayments[key] = { total: 0, required: 0, payments: [] };
           }
@@ -539,66 +553,96 @@ export function StudentProfileModal({ isOpen, onClose, student }: StudentProfile
                   [
                     ...studentPayments.map(p => ({ ...p, type: 'payment' as const })),
                     ...studentTransactions.map(t => ({ ...t, type: 'transaction' as const }))
-                  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((item, idx) => (
-                    <div 
-                      key={idx} 
-                      onClick={() => {
-                        if (item.type === 'payment') {
-                          handleEditPaymentClick(item as any);
-                        }
-                      }}
-                      className={cn(
-                        "bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-3 rounded-xl flex justify-between items-center shadow-sm transition-all",
-                        item.type === 'payment' 
-                          ? "cursor-pointer hover:border-blue-200 hover:bg-blue-50/10 dark:hover:bg-blue-900/10" 
-                          : "hover:bg-slate-50/50"
-                      )}
-                    >
-                      <div className="flex-1">
-                        <div className="flex flex-wrap items-center gap-2 mb-1">
-                          <span className={cn(
-                            "font-black text-sm",
-                            item.type === 'payment' ? "text-slate-900 dark:text-slate-100" : "text-blue-600"
-                          )}>
-                            {(item as any).amount?.toLocaleString() || (item as any).total_amount?.toLocaleString()} ₪
-                          </span>
-                          <span className={cn(
-                            "px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase",
-                            item.type === 'payment' ? "bg-slate-100 text-slate-600 border border-slate-200" : "bg-blue-50 text-blue-600 border border-blue-100"
-                          )}>
-                            {item.type === 'payment' ? 'دفعة اشتراك' : 'شراء منتجات'}
-                          </span>
-                          {(item as any).course_type && (
-                            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-lg text-[9px] font-bold border border-indigo-100">
-                              {(item as any).course_type}
+                  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((item, idx) => {
+                    const isSubTx = (item as any).items?.some((i: any) => i.type === 'subscription');
+                    const isProdTx = (item as any).items?.some((i: any) => i.type === 'product');
+                    let categoryLabel = 'دفعة اشتراك';
+                    if (item.type === 'transaction') {
+                      if (isSubTx && isProdTx) categoryLabel = 'تجديد باقة + منتجات';
+                      else if (isSubTx) categoryLabel = 'تجديد باقة';
+                      else categoryLabel = 'شراء منتجات';
+                    }
+
+                    return (
+                      <div 
+                        key={idx} 
+                        onClick={() => {
+                          if (item.type === 'payment') {
+                            handleEditPaymentClick(item as any);
+                          }
+                        }}
+                        className={cn(
+                          "bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-3 rounded-xl flex justify-between items-center shadow-sm transition-all",
+                          item.type === 'payment' 
+                            ? "cursor-pointer hover:border-blue-200 hover:bg-blue-50/10 dark:hover:bg-blue-900/10" 
+                            : "hover:bg-slate-50/50"
+                        )}
+                      >
+                        <div className="flex-1">
+                          <div className="flex flex-wrap items-center gap-2 mb-1">
+                            <span className={cn(
+                              "font-black text-sm",
+                              item.type === 'payment' ? "text-slate-900 dark:text-slate-100" : "text-blue-600"
+                            )}>
+                              {(item as any).amount?.toLocaleString() || (item as any).total_amount?.toLocaleString()} ₪
                             </span>
+                            <span className={cn(
+                              "px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase",
+                              item.type === 'payment' ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : (isSubTx ? "bg-blue-50 text-blue-700 border border-blue-200" : "bg-purple-50 text-purple-700 border border-purple-200")
+                            )}>
+                              {categoryLabel}
+                            </span>
+                            {(item as any).course_type && (
+                              <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-lg text-[9px] font-bold border border-indigo-100">
+                                {(item as any).course_type}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <p className="text-[10px] font-bold text-slate-500">{(item as any).month || (item as any).method || '-'} • {(item as any).date ? format(new Date((item as any).date), 'yyyy-MM-dd') : '-'}</p>
+                            {(item as any).notes && <p className="text-[10px] text-slate-400 italic font-medium"> • {(item as any).notes}</p>}
+                          </div>
+                        </div>
+                        <div className="text-left flex items-center gap-2">
+                          {item.type === 'transaction' ? (
+                            <button
+                              type="button"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (window.confirm('هل أنت متأكد من رغبتك في حذف هذه العملية المالية نهائياً؟')) {
+                                  const toastId = toast.loading('جاري حذف العملية...');
+                                  try {
+                                    await deleteTransactionMutation.mutateAsync(item.id);
+                                    toast.success('تم حذف العملية بنجاح', { id: toastId });
+                                  } catch (err: any) {
+                                    toast.error(err.message || 'فشل حذف العملية', { id: toastId });
+                                  }
+                                }
+                              }}
+                              className="p-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 rounded-lg transition-colors flex items-center gap-1 text-[10px] font-black"
+                              title="حذف العملية"
+                            >
+                              <Trash2 size={12} />
+                              <span>حذف</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditPaymentClick(item as any);
+                              }}
+                              className="p-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 rounded-lg transition-colors flex items-center gap-1 text-[10px] font-black"
+                              title="تعديل أو حذف الدفعة"
+                            >
+                              <Edit2 size={12} />
+                              <span>تعديل/حذف</span>
+                            </button>
                           )}
                         </div>
-                        <div className="flex items-center gap-3">
-                          <p className="text-[10px] font-bold text-slate-500">{(item as any).month || (item as any).method || '-'} • {(item as any).date ? format(new Date((item as any).date), 'yyyy-MM-dd') : '-'}</p>
-                          {(item as any).notes && <p className="text-[10px] text-slate-400 italic font-medium"> • {(item as any).notes}</p>}
-                        </div>
                       </div>
-                      <div className="text-left">
-                        {item.type === 'transaction' ? (
-                          <span className="text-[10px] font-bold text-blue-500 block whitespace-nowrap">{(item as any).items?.length} أصناف</span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditPaymentClick(item as any);
-                            }}
-                            className="p-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 rounded-lg transition-colors flex items-center gap-1 text-[10px] font-black"
-                            title="تعديل أو حذف الدفعة"
-                          >
-                            <Edit2 size={12} />
-                            <span>تعديل/حذف</span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>

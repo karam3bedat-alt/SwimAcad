@@ -970,6 +970,32 @@ export const transactionsService = {
       handleFirestoreError(error, OperationType.CREATE, path);
       throw error;
     }
+  },
+
+  async update(id: string, data: Partial<Transaction>): Promise<void> {
+    const path = `transactions/${id}`;
+    try {
+      const docRef = doc(db, 'transactions', id);
+      const cleaned = cleanFirestoreData(data);
+      await updateDoc(docRef, {
+        ...cleaned,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, path);
+      throw error;
+    }
+  },
+
+  async delete(id: string): Promise<void> {
+    const path = `transactions/${id}`;
+    try {
+      const docRef = doc(db, 'transactions', id);
+      await deleteDoc(docRef);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, path);
+      throw error;
+    }
   }
 };
 
